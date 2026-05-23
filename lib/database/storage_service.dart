@@ -132,10 +132,10 @@ class StorageService {
 
   List<TravelLocation> _defaultLocations() {
     return [
-      TravelLocation(id: 1, name: '目的地1', color: const Color.from(alpha: 1, red: 0.898, green: 0.224, blue: 0.208), type: LocationType.fixed, sortOrder: 0),
-      TravelLocation(id: 2, name: '目的地2', color: const Color.from(alpha: 1, red: 0.118, green: 0.533, blue: 0.898), type: LocationType.fixed, sortOrder: 1),
-      TravelLocation(id: 3, name: '目的地3', color: const Color.from(alpha: 1, red: 0.263, green: 0.627, blue: 0.278), type: LocationType.fixed, sortOrder: 2),
-      TravelLocation(id: 4, name: '目的地4', color: const Color.from(alpha: 1, red: 0.984, green: 0.737, blue: 0.0), type: LocationType.fixed, sortOrder: 3),
+      TravelLocation(id: 1, name: '目的地1', color: const Color(0xFFFF6600), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 0),
+      TravelLocation(id: 2, name: '目的地2', color: const Color(0xFF2196F3), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 1),
+      TravelLocation(id: 3, name: '目的地3', color: const Color(0xFF4CAF50), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 2),
+      TravelLocation(id: 4, name: '目的地4', color: const Color(0xFFFF9800), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 3),
     ];
   }
 

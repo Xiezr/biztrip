@@ -12,10 +12,14 @@ class LocationProvider extends ChangeNotifier {
   List<TravelLocation> get locations => List.unmodifiable(_locations);
 
   List<TravelLocation> get fixedLocations =>
-      _locations.where((l) => l.type == LocationType.fixed).toList();
+      _locations.where((l) => l.scope == LocationScope.global).toList();
 
   List<TravelLocation> get temporaryLocations =>
-      _locations.where((l) => l.type == LocationType.temporary).toList();
+      _locations.where((l) => l.scope == LocationScope.month).toList();
+
+  /// 获取指定年月的目的地列表（global 全月可见，month 仅匹配年月）
+  List<TravelLocation> locationsForMonth(int year, int month) =>
+      _locations.where((l) => l.belongsTo(year, month)).toList();
 
   Future<void> load() async {
     _locations = await _storage.loadLocations();
@@ -41,6 +45,7 @@ class LocationProvider extends ChangeNotifier {
       name: name,
       color: color,
       type: LocationType.fixed,
+      scope: LocationScope.global,
       sortOrder: _locations.length,
     ));
     notifyListeners();
@@ -64,9 +69,10 @@ class LocationProvider extends ChangeNotifier {
       name: name,
       color: color,
       type: LocationType.temporary,
+      scope: LocationScope.month,
+      scopedYear: y,
+      scopedMonth: m,
       sortOrder: _locations.length,
-      year: y,
-      month: m,
     ));
     notifyListeners();
     save();
@@ -91,13 +97,14 @@ class LocationProvider extends ChangeNotifier {
   }
 
   /// 从存档恢复到活跃列表（同时从存档移除）
+  /// [year]/[month] 指定恢复后的作用域月份
   void restoreFromArchive(int id, {int? year, int? month}) {
     try {
       final loc = _archive.firstWhere((l) => l.id == id);
       final y = year ?? DateTime.now().year;
       final m = month ?? DateTime.now().month;
-      _locations.add(loc.copyWith(year: y, month: m));
-      _archive.remove(loc); // 恢复后从存档移除
+      _locations.add(loc.copyWith(scope: LocationScope.month, scopedYear: y, scopedMonth: m));
+      _archive.remove(loc);
     } catch (_) {}
     notifyListeners();
     save();
@@ -108,7 +115,12 @@ class LocationProvider extends ChangeNotifier {
     try {
       final src = _archive.firstWhere((l) => l.id == archiveId);
       final id = _nextId++;
-      _locations.add(src.copyWith(id: id, year: year, month: month));
+      _locations.add(src.copyWith(
+        id: id,
+        scope: LocationScope.month,
+        scopedYear: year,
+        scopedMonth: month,
+      ));
       notifyListeners();
       save();
       return id;
@@ -195,10 +207,10 @@ class LocationProvider extends ChangeNotifier {
 
   List<TravelLocation> _defaultLocations() {
     return [
-      TravelLocation(id: _nextId++, name: '目的地1', color: const Color.from(alpha: 1, red: 0.898, green: 0.224, blue: 0.208), type: LocationType.fixed, sortOrder: 0),
-      TravelLocation(id: _nextId++, name: '目的地2', color: const Color.from(alpha: 1, red: 0.118, green: 0.533, blue: 0.898), type: LocationType.fixed, sortOrder: 1),
-      TravelLocation(id: _nextId++, name: '目的地3', color: const Color.from(alpha: 1, red: 0.263, green: 0.627, blue: 0.278), type: LocationType.fixed, sortOrder: 2),
-      TravelLocation(id: _nextId++, name: '目的地4', color: const Color.from(alpha: 1, red: 0.984, green: 0.737, blue: 0.0), type: LocationType.fixed, sortOrder: 3),
+      TravelLocation(id: _nextId++, name: '目的地1', color: const Color(0xFFFF6600), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 0),
+      TravelLocation(id: _nextId++, name: '目的地2', color: const Color(0xFF2196F3), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 1),
+      TravelLocation(id: _nextId++, name: '目的地3', color: const Color(0xFF4CAF50), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 2),
+      TravelLocation(id: _nextId++, name: '目的地4', color: const Color(0xFFFF9800), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 3),
     ];
   }
 }

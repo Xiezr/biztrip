@@ -21,13 +21,13 @@ class MonthView extends StatelessWidget {
     final month = calendarProvider.month;
     final marksByDay = markProvider.getMarksForMonth(year, month);
     final allLocations = locationProvider.locations;
-    final archivedLocations = locationProvider.archive;
+    // archivedLocations 不再需要用于 locationMap（已在方案B中移除）
 
     // 活跃目的地跨月自动清除
     final rawActiveId = calendarProvider.activeLocationId;
     final activeId = (rawActiveId != null) ? () {
       final loc = locationProvider.getById(rawActiveId);
-      if (loc != null && loc.year != null && (loc.year != year || loc.month != month)) {
+      if (loc != null && !loc.belongsTo(year, month)) {
         WidgetsBinding.instance.addPostFrameCallback((_) => calendarProvider.setActiveLocation(null));
         return null;
       }
@@ -40,11 +40,10 @@ class MonthView extends StatelessWidget {
       if (l.id != null) locationMap[l.id!] = l;
     }
 
-    // 目的地列表：仅来自 locations，不含存档
+    // 目的地列表：仅显示属于当前月或全局的目的地
     final activeLocIds = marksByDay.values.expand((list) => list).map((m) => m.locationId).toSet();
     final monthLocations = allLocations.where((l) =>
-      l.id != null &&
-      (l.year == null || (l.year == year && l.month == month)) &&
+      l.id != null && l.belongsTo(year, month) &&
       (activeLocIds.contains(l.id) || l.id == activeId)
     ).toList();
 
@@ -85,9 +84,9 @@ class MonthView extends StatelessWidget {
                   if (date.isBefore(DateTime(today.year, today.month, today.day))) return;
                   if (aid == null) return;
 
-                  // 检查活跃目的地是否属于当前月或为固定目的地
+                  // 检查活跃目的地是否属于当前月或为全局
                   final loc = locationMap[aid];
-                  if (loc != null && loc.year != null && (loc.year != year || loc.month != month)) return;
+                  if (loc != null && !loc.belongsTo(year, month)) return;
 
                   if (markProvider.hasMark(aid, date)) {
                     await markProvider.toggleMark(aid, date);
@@ -160,8 +159,7 @@ class MonthView extends StatelessWidget {
     final calendarProvider = context.read<CalendarProvider>();
     // 仅显示当月或全局的临时目的地
     final existing = locationProvider.locations.where((l) =>
-      l.type == LocationType.temporary &&
-      (l.year == null || (l.year == year && l.month == month))
+      l.scope == LocationScope.month && l.belongsTo(year, month)
     ).toList();
     final archived = locationProvider.archive;
 
