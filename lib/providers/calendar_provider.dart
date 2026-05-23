@@ -13,7 +13,7 @@ class CalendarProvider extends ChangeNotifier {
       : _year = DateTime.now().year,
         _month = DateTime.now().month,
         _minYear = DateTime.now().year - 1,
-        _maxYear = DateTime.now().year;
+        _maxYear = DateTime.now().year + 1;
 
   int get year => _year;
   int get month => _month;

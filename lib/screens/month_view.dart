@@ -73,19 +73,29 @@ class MonthView extends StatelessWidget {
               final dayMarks = markProvider.getMarksForDate(date);
               if (dayMarks.length >= 2) return;
 
-              final lastDate = markProvider.getLastMarkDate(aid, date);
-              if (lastDate != null) {
-                final daysSince = date.difference(lastDate).inDays;
-                final locName = locationProvider.getById(aid)?.name ?? '';
-                if (daysSince > 0) {
-                  await showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text('距离上一次去$locName'),
-                      content: Text('已有 $daysSince 天', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了'))],
-                    ),
-                  );
+              // 判断是否连续日期（和已有标记相差1天以内）
+              bool isConsecutive = false;
+              final prev = DateTime(date.year, date.month, date.day - 1);
+              final next = DateTime(date.year, date.month, date.day + 1);
+              if (markProvider.hasMark(aid, prev) || markProvider.hasMark(aid, next)) {
+                isConsecutive = true;
+              }
+
+              if (!isConsecutive) {
+                final lastDate = markProvider.getLastMarkDate(aid, date);
+                if (lastDate != null) {
+                  final daysSince = date.difference(lastDate).inDays;
+                  final locName = locationProvider.getById(aid)?.name ?? '';
+                  if (daysSince > 0) {
+                    await showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text('距离上一次去$locName'),
+                        content: Text('已有 $daysSince 天', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了'))],
+                      ),
+                    );
+                  }
                 }
               }
               await markProvider.toggleMark(aid, date);
@@ -93,15 +103,15 @@ class MonthView extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 4),
+        const SizedBox(height: 16),
 
-        // 目的地列表
+        // 目的地列表（每行最多3个）
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           child: Wrap(
             alignment: WrapAlignment.center,
-            spacing: 6,
-            runSpacing: 4,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               ...monthLocations.map((loc) => _DestChip(
                 location: loc,

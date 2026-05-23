@@ -281,7 +281,6 @@ class _LocationEditPageState extends State<LocationEditPage> {
                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
                           TextButton(
                             onPressed: () {
-                              context.read<MarkProvider>().removeMarksByLocation(widget.locationId);
                               context.read<LocationProvider>().removeLocation(widget.locationId);
                               Navigator.pop(ctx);
                               Navigator.pop(context);
