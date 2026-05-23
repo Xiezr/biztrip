@@ -46,13 +46,20 @@ class DayCell extends StatelessWidget {
     // 有标记：用CustomPaint画斜对角
     return GestureDetector(
       onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: CustomPaint(
-          painter: colors.length == 2
-              ? _DiagonalSplitPainter(colors[0], colors[1])
-              : _SolidColorPainter(colors[0]),
-          child: _buildCore(colors, isToday, isCurrentMonth, theme),
+      child: Container(
+        margin: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.15), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CustomPaint(
+            painter: colors.length == 2
+                ? _DiagonalSplitPainter(colors[0], colors[1])
+                : _SolidColorPainter(colors[0]),
+            child: _buildCore(colors, isToday, isCurrentMonth, theme),
+          ),
         ),
       ),
     );
@@ -61,7 +68,7 @@ class DayCell extends StatelessWidget {
   Widget _buildCore(List<Color> colors, bool isToday, bool isCurrentMonth, ThemeData theme) {
     final hasMarks = colors.isNotEmpty;
     return Container(
-      margin: const EdgeInsets.all(1.5),
+      margin: const EdgeInsets.symmetric(vertical: 1),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
         border: isToday
@@ -87,7 +94,8 @@ class _SolidColorPainter extends CustomPainter {
   _SolidColorPainter(this.color);
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = color);
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(10));
+    canvas.drawRRect(rrect, Paint()..color = color..isAntiAlias = true);
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
@@ -99,8 +107,8 @@ class _DiagonalSplitPainter extends CustomPainter {
   _DiagonalSplitPainter(this.color1, this.color2);
   @override
   void paint(Canvas canvas, Size size) {
-    final paint1 = Paint()..color = color1;
-    final paint2 = Paint()..color = color2;
+    final paint1 = Paint()..color = color1..isAntiAlias = true;
+    final paint2 = Paint()..color = color2..isAntiAlias = true;
 
     // 右上到左下斜角分割
     final path1 = Path()
@@ -109,7 +117,8 @@ class _DiagonalSplitPainter extends CustomPainter {
       ..lineTo(0, size.height)
       ..close();
 
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint2);
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(10));
+    canvas.drawRRect(rrect, paint2);
     canvas.drawPath(path1, paint1);
   }
   @override

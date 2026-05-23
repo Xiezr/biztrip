@@ -43,7 +43,6 @@ class MonthView extends StatelessWidget {
                 ),
               ),
               IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => calendarProvider.goToNextMonth(), padding: EdgeInsets.zero),
-              IconButton(icon: const Icon(Icons.add_location_alt_outlined, size: 18), onPressed: () => _addTempLocation(context)),
             ],
           ),
         ),
@@ -103,7 +102,7 @@ class MonthView extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
 
         // 目的地列表（每行3列）
         _DestGrid(

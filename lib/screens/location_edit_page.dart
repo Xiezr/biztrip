@@ -116,7 +116,10 @@ class _LocationEditPageState extends State<LocationEditPage> {
     // 预设可添加的选项（排除已存在的）
     final allOptions = ['差旅通知', '差旅确认', '差旅跟进', '差旅报告', '票据报销'];
     final available = allOptions.where((o) => !_reminderItems.any((r) => r.label == o)).toList();
-    if (available.isEmpty) return;
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('所有提醒项已在列表中')));
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

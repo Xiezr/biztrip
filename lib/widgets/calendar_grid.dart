@@ -26,9 +26,9 @@ class CalendarGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final grid = CalendarUtils.buildGrid(year, month);
     final today = DateTime.now();
-    final cellSize = compact ? 40.0 : 48.0;
-    final dayFontSize = compact ? 13.0 : 16.0;
-    final headerFontSize = compact ? 12.0 : 14.0;
+    final cellSize = compact ? 42.0 : 48.0;
+    final dayFontSize = compact ? 13.0 : 15.0;
+    final headerFontSize = compact ? 11.0 : 13.0;
 
     return Center(
       child: Column(
@@ -40,14 +40,14 @@ class CalendarGrid extends StatelessWidget {
             children: CalendarUtils.weekDays.map((d) {
               return SizedBox(
                 width: cellSize,
-                height: 22,
+                height: 20,
                 child: Center(
-                  child: Text(d, style: TextStyle(fontSize: headerFontSize, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                  child: Text(d, style: TextStyle(fontSize: headerFontSize, color: Colors.grey[500], fontWeight: FontWeight.w400, letterSpacing: 1.2)),
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 2),
           // 日历网格
           ...List.generate(6, (row) {
             return Row(
