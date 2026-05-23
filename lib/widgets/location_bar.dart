@@ -82,18 +82,23 @@ class LocationBar extends StatelessWidget {
           autofocus: true,
           decoration: const InputDecoration(hintText: '地点名称'),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                context.read<LocationProvider>().addTemporaryLocation(controller.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('添加'),
-          ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            TextButton(
+              onPressed: () {
+                if (controller.text.trim().isNotEmpty) {
+                  final cal = context.read<CalendarProvider>();
+                  context.read<LocationProvider>().addTemporaryLocation(
+                    controller.text.trim(),
+                    year: cal.year,
+                    month: cal.month,
+                  );
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('添加'),
+            ),
+          ],
       ),
     );
   }

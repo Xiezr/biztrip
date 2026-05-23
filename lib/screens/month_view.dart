@@ -21,114 +21,149 @@ class MonthView extends StatelessWidget {
     final month = calendarProvider.month;
     final marksByDay = markProvider.getMarksForMonth(year, month);
     final allLocations = locationProvider.locations;
-    final locationMap = {for (final l in allLocations) l.id!: l};
-    final activeId = calendarProvider.activeLocationId;
+    final archivedLocations = locationProvider.archive;
 
-    final monthLocations = allLocations.where((l) => l.id != null).toList();
+    // 活跃目的地跨月自动清除
+    final rawActiveId = calendarProvider.activeLocationId;
+    final activeId = (rawActiveId != null) ? () {
+      final loc = locationProvider.getById(rawActiveId);
+      if (loc != null && loc.year != null && (loc.year != year || loc.month != month)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => calendarProvider.setActiveLocation(null));
+        return null;
+      }
+      return rawActiveId;
+    }() : null;
 
-    return Column(
+    // locationMap 仅含活跃目的地（不含存档），用于日历格子颜色渲染
+    final locationMap = <int, TravelLocation>{};
+    for (final l in allLocations) {
+      if (l.id != null) locationMap[l.id!] = l;
+    }
+
+    // 目的地列表：仅来自 locations，不含存档
+    final activeLocIds = marksByDay.values.expand((list) => list).map((m) => m.locationId).toSet();
+    final monthLocations = allLocations.where((l) =>
+      l.id != null &&
+      (l.year == null || (l.year == year && l.month == month)) &&
+      (activeLocIds.contains(l.id) || l.id == activeId)
+    ).toList();
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity > 200) {
+          calendarProvider.goToPreviousMonth();
+        } else if (velocity < -200) {
+          calendarProvider.goToNextMonth();
+        }
+      },
+      child: Column(
       children: [
-        // 月份标题（紧凑）
+        // 月份标题
         Padding(
-          padding: const EdgeInsets.only(left: 2, right: 2, top: 0),
-          child: Row(
+          padding: const EdgeInsets.only(top: 8),
+          child: GestureDetector(
+            onTap: () => calendarProvider.setViewMode(ViewMode.year),
+            child: Text('$year年 ${CalendarUtils.monthName(month)}', textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: 1)),
+          ),
+        ),
+        // 日历（61.8%）
+        Flexible(
+          flex: 618,
+          child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: CalendarGrid(
+                year: year,
+                month: month,
+                marksByDay: marksByDay,
+                locationMap: locationMap,
+                onTapDay: (date) async {
+                  final aid = calendarProvider.activeLocationId;
+                  final today = DateTime.now();
+                  if (date.isBefore(DateTime(today.year, today.month, today.day))) return;
+                  if (aid == null) return;
+
+                  // 检查活跃目的地是否属于当前月或为固定目的地
+                  final loc = locationMap[aid];
+                  if (loc != null && loc.year != null && (loc.year != year || loc.month != month)) return;
+
+                  if (markProvider.hasMark(aid, date)) {
+                    await markProvider.toggleMark(aid, date);
+                    return;
+                  }
+
+                  final dayMarks = markProvider.getMarksForDate(date);
+                  if (dayMarks.length >= 2) return;
+
+                  bool isConsecutive = false;
+                  final prev = DateTime(date.year, date.month, date.day - 1);
+                  final next = DateTime(date.year, date.month, date.day + 1);
+                  if (markProvider.hasMark(aid, prev) || markProvider.hasMark(aid, next)) {
+                    isConsecutive = true;
+                  }
+
+                  if (!isConsecutive) {
+                    final lastDate = markProvider.getLastMarkDate(aid, date);
+                    if (lastDate != null) {
+                      final daysSince = date.difference(lastDate).inDays;
+                      final locName = locationProvider.getById(aid)?.name ?? '';
+                      if (daysSince > 0) {
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text('距离上一次去$locName'),
+                            content: Text('已有 $daysSince 天', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了'))],
+                          ),
+                        );
+                      }
+                    }
+                  }
+                  await markProvider.toggleMark(aid, date);
+                },
+              ),
+            ),
+          ),
+
+        // 目的地（38.2%）
+        Flexible(
+          flex: 382,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 16), onPressed: () => calendarProvider.setViewMode(ViewMode.year)),
-              IconButton(icon: const Icon(Icons.chevron_left), onPressed: () => calendarProvider.goToPreviousMonth(), padding: EdgeInsets.zero),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => calendarProvider.setViewMode(ViewMode.year),
-                  child: Text('$year年 ${CalendarUtils.monthName(month)}', textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              _DestGrid(
+                locations: monthLocations,
+                activeId: activeId,
+                onTap: (id) => calendarProvider.setActiveLocation(id),
+                onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id))),
+                onAdd: () => _addTempLocation(context, year: year, month: month),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '当前时区：UTC${DateTime.now().timeZoneOffset.isNegative ? "" : "+"}${DateTime.now().timeZoneOffset.inHours}',
+                  style: TextStyle(fontSize: 9, color: Colors.grey[400]),
                 ),
               ),
-              IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => calendarProvider.goToNextMonth(), padding: EdgeInsets.zero),
             ],
           ),
         ),
-
-        if (activeId != null)
-          Text('涂抹中：${locationProvider.getById(activeId)?.name ?? ''}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-
-        // 日历
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: CalendarGrid(
-            year: year,
-            month: month,
-            marksByDay: marksByDay,
-            locationMap: locationMap,
-            onTapDay: (date) async {
-              final aid = calendarProvider.activeLocationId;
-              final today = DateTime.now();
-              if (date.isBefore(DateTime(today.year, today.month, today.day))) return;
-              if (aid == null) return;
-
-              if (markProvider.hasMark(aid, date)) {
-                await markProvider.toggleMark(aid, date);
-                return;
-              }
-
-              final dayMarks = markProvider.getMarksForDate(date);
-              if (dayMarks.length >= 2) return;
-
-              // 判断是否连续日期（和已有标记相差1天以内）
-              bool isConsecutive = false;
-              final prev = DateTime(date.year, date.month, date.day - 1);
-              final next = DateTime(date.year, date.month, date.day + 1);
-              if (markProvider.hasMark(aid, prev) || markProvider.hasMark(aid, next)) {
-                isConsecutive = true;
-              }
-
-              if (!isConsecutive) {
-                final lastDate = markProvider.getLastMarkDate(aid, date);
-                if (lastDate != null) {
-                  final daysSince = date.difference(lastDate).inDays;
-                  final locName = locationProvider.getById(aid)?.name ?? '';
-                  if (daysSince > 0) {
-                    await showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text('距离上一次去$locName'),
-                        content: Text('已有 $daysSince 天', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了'))],
-                      ),
-                    );
-                  }
-                }
-              }
-              await markProvider.toggleMark(aid, date);
-            },
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // 目的地列表（每行3列）
-        _DestGrid(
-          locations: monthLocations,
-          activeId: activeId,
-          onTap: (id) => calendarProvider.setActiveLocation(id),
-          onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id))),
-          onAdd: () => _addTempLocation(context),
-        ),
-
-        // 底部时区
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            '当前时区：UTC${DateTime.now().timeZoneOffset.isNegative ? "" : "+"}${DateTime.now().timeZoneOffset.inHours}',
-            style: TextStyle(fontSize: 9, color: Colors.grey[400]),
-          ),
-        ),
       ],
+    ),
     );
   }
 
-  void _addTempLocation(BuildContext context) {
+  void _addTempLocation(BuildContext context, {required int year, required int month}) {
     final locationProvider = context.read<LocationProvider>();
     final calendarProvider = context.read<CalendarProvider>();
-    final existing = locationProvider.locations.where((l) => l.type == LocationType.temporary).toList();
+    // 仅显示当月或全局的临时目的地
+    final existing = locationProvider.locations.where((l) =>
+      l.type == LocationType.temporary &&
+      (l.year == null || (l.year == year && l.month == month))
+    ).toList();
+    final archived = locationProvider.archive;
 
     showModalBottomSheet(
       context: context,
@@ -136,35 +171,45 @@ class MonthView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('选择或新建目的地', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            ),
+            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('选择或新建目的地', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
             if (existing.isNotEmpty) ...[
               const Divider(height: 1),
               SizedBox(
-                height: existing.length * 48.0,
-                child: ListView(
-                  children: existing.map((loc) => ListTile(
-                    leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
-                    title: Text(loc.name, style: const TextStyle(fontSize: 14)),
-                    trailing: const Icon(Icons.chevron_right, size: 18),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      calendarProvider.setActiveLocation(loc.id);
-                    },
-                  )).toList(),
-                ),
+                height: (existing.length * 48.0).clamp(0, 200),
+                child: ListView(children: existing.map((loc) => ListTile(
+                  dense: true,
+                  leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
+                  title: Text(loc.name, style: const TextStyle(fontSize: 14)),
+                  onTap: () { Navigator.pop(ctx); calendarProvider.setActiveLocation(loc.id); },
+                )).toList()),
+              ),
+            ],
+            if (archived.isNotEmpty) ...[
+              const Divider(height: 1),
+              Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 2), child: Row(children: [
+                Text('已存档', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+              ])),
+              SizedBox(
+                height: (archived.length * 44.0).clamp(0, 180),
+                child: ListView(children: archived.map((loc) => ListTile(
+                  dense: true,
+                  leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
+                  title: Text(loc.name, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                  onTap: () {
+                    final newId = context.read<LocationProvider>().copyFromArchive(loc.id!, year: year, month: month);
+                    Navigator.pop(ctx);
+                    if (newId > 0) {
+                      calendarProvider.setActiveLocation(newId);
+                    }
+                  },
+                )).toList()),
               ),
             ],
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
               title: const Text('新建目的地', style: TextStyle(fontSize: 14, color: Colors.blue)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showAddDialog(context);
-              },
+              onTap: () { Navigator.pop(ctx); _showAddDialog(context, year: year, month: month); },
             ),
           ],
         ),
@@ -172,7 +217,7 @@ class MonthView extends StatelessWidget {
     );
   }
 
-  void _showAddDialog(BuildContext context) {
+  void _showAddDialog(BuildContext context, {required int year, required int month}) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -188,7 +233,7 @@ class MonthView extends StatelessWidget {
           TextButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
-                final newId = context.read<LocationProvider>().addTemporaryLocation(controller.text.trim());
+                final newId = context.read<LocationProvider>().addTemporaryLocation(controller.text.trim(), year: year, month: month);
                 context.read<CalendarProvider>().setActiveLocation(newId);
                 Navigator.pop(ctx);
               }
@@ -218,52 +263,52 @@ class _DestGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 目的地+新建按钮，按每行3个分组，新建按钮始终在最后
-    final allSlots = <TravelLocation?>[...locations, null]; // null表示新建按钮
-
-    final slotRows = <List<TravelLocation?>>[];
-    for (int i = 0; i < allSlots.length; i += 3) {
-      final row = <TravelLocation?>[];
-      for (int j = 0; j < 3; j++) {
-        final idx = i + j;
-        row.add(idx < allSlots.length ? allSlots[idx] : null);
-      }
-      slotRows.add(row);
-    }
+    // 3列网格：目的地按序排列，新建按钮跟在最后一个目的地之后
+    final cols = 3;
+    final items = locations.length + 1; // +1 for "+"按钮
+    final rowCount = (items + cols - 1) ~/ cols;
 
     return Column(
-      children: slotRows.map((row) => Padding(
+      children: List.generate(rowCount, (r) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          children: row.map((item) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                child: item == null
-                    ? GestureDetector(
-                        onTap: onAdd,
-                        child: Container(
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: const Center(child: Icon(Icons.add, size: 16, color: Colors.grey)),
-                        ),
-                      )
-                    : _DestChip(
-                        location: item,
-                        isActive: item.id == activeId,
-                        onTap: () => onTap(item.id),
-                        onLongPress: () => onLongPress(item.id!),
-                      ),
-              ),
-            );
-          }).toList(),
+          children: List.generate(cols, (c) {
+            final idx = r * cols + c;
+            return Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: _slotWidget(idx),
+            ));
+          }),
         ),
-      )).toList(),
+      )),
     );
+  }
+
+  Widget _slotWidget(int idx) {
+    if (idx < locations.length) {
+      final loc = locations[idx];
+      return _DestChip(
+        location: loc,
+        isActive: loc.id == activeId,
+        onTap: () => onTap(loc.id),
+        onLongPress: () => onLongPress(loc.id!),
+      );
+    } else if (idx == locations.length) {
+      return GestureDetector(
+        onTap: onAdd,
+        child: Container(
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: const Center(child: Icon(Icons.add, size: 16, color: Colors.grey)),
+        ),
+      );
+    } else {
+      return const SizedBox(height: 32);
+    }
   }
 }
 
