@@ -103,42 +103,23 @@ class MonthView extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
-        // 目的地列表（每行最多3个）
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              ...monthLocations.map((loc) => _DestChip(
-                location: loc,
-                isActive: loc.id == activeId,
-                onTap: () => calendarProvider.setActiveLocation(loc.id),
-                onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: loc.id!))),
-              )),
-              GestureDetector(
-                onTap: () => _addTempLocation(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, size: 16, color: Colors.grey),
-                      SizedBox(width: 2),
-                      Text('新建', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+        // 目的地列表（每行3列）
+        _DestGrid(
+          locations: monthLocations,
+          activeId: activeId,
+          onTap: (id) => calendarProvider.setActiveLocation(id),
+          onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id))),
+          onAdd: () => _addTempLocation(context),
+        ),
+
+        // 底部时区
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            '当前时区：UTC${DateTime.now().timeZoneOffset.isNegative ? "" : "+"}${DateTime.now().timeZoneOffset.inHours}',
+            style: TextStyle(fontSize: 9, color: Colors.grey[400]),
           ),
         ),
       ],
@@ -221,6 +202,83 @@ class MonthView extends StatelessWidget {
   }
 }
 
+class _DestGrid extends StatelessWidget {
+  final List<TravelLocation> locations;
+  final int? activeId;
+  final void Function(int? id) onTap;
+  final void Function(int id) onLongPress;
+  final VoidCallback onAdd;
+
+  const _DestGrid({
+    required this.locations,
+    required this.activeId,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 按每行3个分组
+    final rows = <List<TravelLocation?>>[];
+    for (int i = 0; i < locations.length; i += 3) {
+      final row = <TravelLocation?>[];
+      for (int j = 0; j < 3; j++) {
+        final idx = i + j;
+        row.add(idx < locations.length ? locations[idx] : null);
+      }
+      rows.add(row);
+    }
+    // 如果最后一行+新建按钮超过3个，加到新行
+    // 始终保证+新建在最后一个位置
+    final allSlots = <TravelLocation?>[...locations, null]; // null表示新建按钮
+
+    final slotRows = <List<TravelLocation?>>[];
+    for (int i = 0; i < allSlots.length; i += 3) {
+      final row = <TravelLocation?>[];
+      for (int j = 0; j < 3; j++) {
+        final idx = i + j;
+        row.add(idx < allSlots.length ? allSlots[idx] : null);
+      }
+      slotRows.add(row);
+    }
+
+    return Column(
+      children: slotRows.map((row) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: row.map((item) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                child: item == null
+                    ? GestureDetector(
+                        onTap: onAdd,
+                        child: Container(
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: const Center(child: Icon(Icons.add, size: 16, color: Colors.grey)),
+                        ),
+                      )
+                    : _DestChip(
+                        location: item,
+                        isActive: item.id == activeId,
+                        onTap: () => onTap(item.id),
+                        onLongPress: () => onLongPress(item.id!),
+                      ),
+              ),
+            );
+          }).toList(),
+        ),
+      )).toList(),
+    );
+  }
+}
+
 class _DestChip extends StatelessWidget {
   final TravelLocation location;
   final bool isActive;
@@ -236,18 +294,18 @@ class _DestChip extends StatelessWidget {
       onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
           color: isActive ? location.color.withValues(alpha: 0.2) : Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: isActive ? location.color : Colors.grey[300]!, width: isActive ? 2 : 1),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(width: 10, height: 10, decoration: BoxDecoration(color: location.color, shape: BoxShape.circle)),
-            const SizedBox(width: 4),
-            Text(location.name, style: TextStyle(fontSize: 13, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal, color: isActive ? location.color : Colors.black87)),
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: location.color, shape: BoxShape.circle)),
+            const SizedBox(width: 3),
+            Flexible(child: Text(location.name, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal, color: isActive ? location.color : Colors.black87))),
           ],
         ),
       ),

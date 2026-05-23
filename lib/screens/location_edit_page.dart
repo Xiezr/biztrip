@@ -4,6 +4,14 @@ import '../models/travel_location.dart';
 import '../providers/location_provider.dart';
 import '../providers/mark_provider.dart';
 
+class _ReminderItem {
+  final String label;
+  final int value;
+  final bool isBefore;
+  const _ReminderItem(this.label, this.value, this.isBefore);
+  _ReminderItem copyWith({int? value}) => _ReminderItem(label, value ?? this.value, isBefore);
+}
+
 class LocationEditPage extends StatefulWidget {
   final int locationId;
   const LocationEditPage({super.key, required this.locationId});
@@ -15,7 +23,7 @@ class LocationEditPage extends StatefulWidget {
 class _LocationEditPageState extends State<LocationEditPage> {
   late TextEditingController _nameCtrl;
   late TextEditingController _tagCtrl;
-  late int _notifyDays, _followDays, _reimburseDays, _confirmDays, _reportDays;
+  late List<_ReminderItem> _reminderItems;
   late List<String> _tags;
   late List<TextEditingController> _reminderCtrls;
   late Color _selectedColor;
@@ -27,11 +35,13 @@ class _LocationEditPageState extends State<LocationEditPage> {
     final loc = context.read<LocationProvider>().getById(widget.locationId)!;
     _nameCtrl = TextEditingController(text: loc.name);
     _tagCtrl = TextEditingController();
-    _notifyDays = loc.notificationDaysBefore;
-    _followDays = loc.followUpDaysAfter;
-    _reimburseDays = loc.reimbursementDaysAfter;
-    _confirmDays = loc.confirmationDaysBefore;
-    _reportDays = loc.reportDaysAfter;
+    _reminderItems = [
+      _ReminderItem('差旅通知', loc.notificationDaysBefore, true),
+      _ReminderItem('差旅确认', loc.confirmationDaysBefore, true),
+      _ReminderItem('差旅跟进', loc.followUpDaysAfter, false),
+      _ReminderItem('差旅报告', loc.reportDaysAfter, false),
+      _ReminderItem('票据报销', loc.reimbursementDaysAfter, false),
+    ];
     _tags = List.from(loc.preparationTags);
     _reminderCtrls = loc.specialReminder.map((s) => TextEditingController(text: s)).toList();
     _selectedColor = loc.color;
@@ -45,12 +55,15 @@ class _LocationEditPageState extends State<LocationEditPage> {
   }
 
   void _save() {
+    int val(String label) {
+      return _reminderItems.firstWhere((r) => r.label == label, orElse: () => _ReminderItem(label, 0, true)).value;
+    }
     context.read<LocationProvider>().updateLocationFull(
       widget.locationId,
       name: _nameCtrl.text.trim(), color: _selectedColor,
-      notificationDaysBefore: _notifyDays, followUpDaysAfter: _followDays,
-      preparationTags: _tags, reimbursementDaysAfter: _reimburseDays,
-      confirmationDaysBefore: _confirmDays, reportDaysAfter: _reportDays,
+      notificationDaysBefore: val('差旅通知'), followUpDaysAfter: val('差旅跟进'),
+      preparationTags: _tags, reimbursementDaysAfter: val('票据报销'),
+      confirmationDaysBefore: val('差旅确认'), reportDaysAfter: val('差旅报告'),
       specialReminder: _reminderCtrls.map((c) => c.text.trim()).toList(),
     );
     Navigator.pop(context);
@@ -96,6 +109,43 @@ class _LocationEditPageState extends State<LocationEditPage> {
           ],
         );
       }),
+    );
+  }
+
+  void _showAddReminderDialog(BuildContext context) {
+    // 预设可添加的选项（排除已存在的）
+    final allOptions = ['差旅通知', '差旅确认', '差旅跟进', '差旅报告', '票据报销'];
+    final available = allOptions.where((o) => !_reminderItems.any((r) => r.label == o)).toList();
+    if (available.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('添加提醒'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: available.map((o) => ListTile(
+            title: Text(o),
+            onTap: () {
+              setState(() {
+                // 排序：报销放最后，其他保持顺序
+                if (o == '票据报销') {
+                  _reminderItems.add(_ReminderItem(o, 7, false));
+                } else {
+                  _reminderItems.insert(_reminderItems.length - (available.contains('票据报销') ? 1 : 0), _ReminderItem(o, 7, o.contains('通知') || o.contains('确认')));
+                }
+                // 确保报销在最后
+                final reimbIdx = _reminderItems.indexWhere((r) => r.label == '票据报销');
+                if (reimbIdx >= 0 && reimbIdx < _reminderItems.length - 1) {
+                  final item = _reminderItems.removeAt(reimbIdx);
+                  _reminderItems.add(item);
+                }
+              });
+              Navigator.pop(ctx);
+            },
+          )).toList(),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消'))],
+      ),
     );
   }
 
@@ -185,17 +235,38 @@ class _LocationEditPageState extends State<LocationEditPage> {
           _ColorPicker(selected: _selectedColor, onChanged: (c) => setState(() => _selectedColor = c)),
           const SizedBox(height: 20),
 
-          // 天数字段（点击弹出选择器）
-          _DayField(label: '差旅通知', value: _notifyDays, isBefore: true, onTap: () => _showDayPicker('差旅通知', _notifyDays, true, (v) => setState(() => _notifyDays = v))),
-          const SizedBox(height: 10),
-          _DayField(label: '差旅确认', value: _confirmDays, isBefore: true, onTap: () => _showDayPicker('差旅确认', _confirmDays, true, (v) => setState(() => _confirmDays = v))),
-          const SizedBox(height: 10),
-          _DayField(label: '差旅跟进', value: _followDays, isBefore: false, onTap: () => _showDayPicker('差旅跟进', _followDays, false, (v) => setState(() => _followDays = v))),
-          const SizedBox(height: 10),
-          _DayField(label: '票据报销', value: _reimburseDays, isBefore: false, onTap: () => _showDayPicker('票据报销', _reimburseDays, false, (v) => setState(() => _reimburseDays = v))),
-          const SizedBox(height: 10),
-          _DayField(label: '差旅报告', value: _reportDays, isBefore: false, onTap: () => _showDayPicker('差旅报告', _reportDays, false, (v) => setState(() => _reportDays = v))),
-          const SizedBox(height: 20),
+          // 提醒事项（可增删调整顺序）
+          Row(children: [
+            Text('提醒事项', style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.add_circle_outline, size: 20), onPressed: () => _showAddReminderDialog(context)),
+          ]),
+          const SizedBox(height: 4),
+          ..._reminderItems.asMap().entries.map((entry) {
+            final i = entry.key;
+            final item = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                // 拖动把手（假装可排序）
+                ReorderableDragStartListener(index: i, child: const Icon(Icons.drag_handle, size: 18, color: Colors.grey)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _DayField(
+                    label: item.label, value: item.value, isBefore: item.isBefore,
+                    onTap: () => _showDayPicker(item.label, item.value, item.isBefore, (v) {
+                      setState(() => _reminderItems[i] = _reminderItems[i].copyWith(value: v));
+                    }),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16, color: Colors.red),
+                  onPressed: _reminderItems.length > 1 ? () => setState(() => _reminderItems.removeAt(i)) : null,
+                ),
+              ]),
+            );
+          }),
+          const SizedBox(height: 16),
 
           // 差旅准备（默认显示前2个）
           Text('差旅准备', style: Theme.of(context).textTheme.titleSmall),
