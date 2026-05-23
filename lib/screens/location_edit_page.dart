@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/travel_location.dart';
 import '../providers/location_provider.dart';
+import '../providers/mark_provider.dart';
 
 class LocationEditPage extends StatefulWidget {
   final int locationId;
@@ -18,6 +19,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
   late List<String> _tags;
   late List<TextEditingController> _reminderCtrls;
   late Color _selectedColor;
+  bool _showAllTags = false;
 
   @override
   void initState() {
@@ -97,6 +99,73 @@ class _LocationEditPageState extends State<LocationEditPage> {
     );
   }
 
+  void _showAddTagDialog(BuildContext context) {
+    final manualCtrl = TextEditingController();
+    // 收集已存档标签（所有目的地中使用过的标签）
+    final allTags = <String>{};
+    for (final loc in context.read<LocationProvider>().locations) {
+      allTags.addAll(loc.preparationTags);
+    }
+    // 去掉当前已使用的标签
+    final archived = allTags.difference(_tags.toSet()).toList()..sort();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('添加标签'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (archived.isNotEmpty) ...[
+                Text('已存档标签', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6, runSpacing: 4,
+                  children: archived.map((t) => ActionChip(
+                    label: Text(t, style: const TextStyle(fontSize: 12)),
+                    onPressed: () {
+                      setState(() => _tags.add(t));
+                      Navigator.pop(ctx);
+                    },
+                  )).toList(),
+                ),
+                const Divider(height: 16),
+              ],
+              Text('手动添加', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              const SizedBox(height: 6),
+              TextField(
+                controller: manualCtrl,
+                autofocus: archived.isEmpty,
+                decoration: const InputDecoration(hintText: '输入新标签', border: OutlineInputBorder()),
+                onSubmitted: (v) {
+                  if (v.trim().isNotEmpty) {
+                    setState(() => _tags.add(v.trim()));
+                    Navigator.pop(ctx);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              if (manualCtrl.text.trim().isNotEmpty) {
+                setState(() => _tags.add(manualCtrl.text.trim()));
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -128,22 +197,31 @@ class _LocationEditPageState extends State<LocationEditPage> {
           _DayField(label: '差旅报告', value: _reportDays, isBefore: false, onTap: () => _showDayPicker('差旅报告', _reportDays, false, (v) => setState(() => _reportDays = v))),
           const SizedBox(height: 20),
 
-          // 差旅准备
+          // 差旅准备（默认显示前2个）
           Text('差旅准备', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            ..._tags.map((t) => Chip(
+            ...(_showAllTags ? _tags : _tags.take(2)).map((t) => Chip(
               label: Text(t, style: const TextStyle(fontSize: 13)),
               deleteIcon: const Icon(Icons.close, size: 18),
               onDeleted: () => setState(() => _tags.remove(t)),
             )),
-            SizedBox(
-              width: 110, height: 36,
-              child: TextField(
-                controller: _tagCtrl,
-                decoration: const InputDecoration(hintText: '添加标签', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
-                style: const TextStyle(fontSize: 13),
-                onSubmitted: (v) { if (v.trim().isNotEmpty) { setState(() { _tags.add(v.trim()); _tagCtrl.clear(); }); }},
+            if (_tags.length > 2 && !_showAllTags)
+              ActionChip(
+                label: Text('+${_tags.length - 2}', style: const TextStyle(fontSize: 12)),
+                onPressed: () => setState(() => _showAllTags = true),
+              ),
+            // 添加按钮（加号图标）
+            GestureDetector(
+              onTap: () => _showAddTagDialog(context),
+              child: Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: const Icon(Icons.add, size: 18, color: Colors.grey),
               ),
             ),
           ]),
@@ -169,6 +247,55 @@ class _LocationEditPageState extends State<LocationEditPage> {
                 onPressed: _reminderCtrls.length > 1 ? () { setState(() { _reminderCtrls[i].dispose(); _reminderCtrls.removeAt(i); }); } : null),
             ]),
           )),
+          const SizedBox(height: 24),
+
+          // 删除选项
+          Text('删除目的地', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.visibility_off, size: 16),
+                  label: const Text('临时删除', style: TextStyle(fontSize: 13)),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
+                  onPressed: () {
+                    context.read<MarkProvider>().removeMarksByLocation(widget.locationId);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清除该目的地的所有差旅')));
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_forever, size: 16),
+                  label: const Text('永久删除', style: TextStyle(fontSize: 13)),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('确认删除'),
+                        content: const Text('永久删除后将无法恢复'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+                          TextButton(
+                            onPressed: () {
+                              context.read<MarkProvider>().removeMarksByLocation(widget.locationId);
+                              context.read<LocationProvider>().removeLocation(widget.locationId);
+                              Navigator.pop(ctx);
+                              Navigator.pop(context);
+                            },
+                            child: const Text('确认删除', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

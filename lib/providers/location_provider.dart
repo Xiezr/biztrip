@@ -42,7 +42,7 @@ class LocationProvider extends ChangeNotifier {
     save();
   }
 
-  void addTemporaryLocation(String name) {
+  int addTemporaryLocation(String name) {
     final usedColors = _locations.map((l) => l.color).toSet();
     Color color = TravelLocation.presetColors[0];
     for (final c in TravelLocation.presetColors) {
@@ -51,8 +51,9 @@ class LocationProvider extends ChangeNotifier {
         break;
       }
     }
+    final id = _nextId++;
     _locations.add(TravelLocation(
-      id: _nextId++,
+      id: id,
       name: name,
       color: color,
       type: LocationType.temporary,
@@ -60,6 +61,7 @@ class LocationProvider extends ChangeNotifier {
     ));
     notifyListeners();
     save();
+    return id;
   }
 
   void removeLocation(int id) {

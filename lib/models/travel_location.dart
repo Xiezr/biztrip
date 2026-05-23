@@ -27,13 +27,13 @@ class TravelLocation {
     this.notificationDaysBefore = 7,
     this.followUpDaysAfter = 3,
     this.preparationTags = const [
-      '联络当地人员', '交通安排', '出行安排',
-      '天气预警', '酒店住宿', '票据留存',
+      '联络当地人员', '交通安排', '行李安排',
+      '酒店住宿', '天气预警', '票据留存',
     ],
     this.reimbursementDaysAfter = 7,
     this.confirmationDaysBefore = 1,
     this.reportDaysAfter = 3,
-    this.specialReminder = const ['', ''],
+    this.specialReminder = const ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'],
   });
 
   TravelLocation copyWith({
@@ -90,7 +90,7 @@ class TravelLocation {
         notificationDaysBefore: json['notificationDaysBefore'] as int? ?? 7,
         followUpDaysAfter: json['followUpDaysAfter'] as int? ?? 3,
         preparationTags: (json['preparationTags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
-            ['联络当地人员', '交通安排', '出行安排', '天气预警', '酒店住宿', '票据留存'],
+            ['联络当地人员', '交通安排', '行李安排', '酒店住宿', '天气预警', '票据留存'],
         reimbursementDaysAfter: json['reimbursementDaysAfter'] as int? ?? 7,
         confirmationDaysBefore: json['confirmationDaysBefore'] as int? ?? 1,
         reportDaysAfter: json['reportDaysAfter'] as int? ?? 3,
@@ -100,8 +100,8 @@ class TravelLocation {
   /// 兼容旧版 String 和新版 List of String
   static List<String> _parseSpecialReminder(dynamic value) {
     if (value is List) return value.map((e) => e as String).toList();
-    if (value is String) return value.isEmpty ? ['', ''] : [value];
-    return ['', ''];
+    if (value is String) return value.isEmpty ? ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'] : [value];
+    return ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'];
   }
 
   static const presetColors = [

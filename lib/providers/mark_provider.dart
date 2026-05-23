@@ -91,6 +91,13 @@ class MarkProvider extends ChangeNotifier {
     _storage.saveMarks(_marks);
   }
 
+  /// 删除指定地点的所有标记（永久删除时使用）
+  void removeMarksByLocation(int locationId) {
+    _marks.removeWhere((m) => m.locationId == locationId);
+    notifyListeners();
+    _storage.saveMarks(_marks);
+  }
+
   DateTime _normalizeDate(DateTime dt) {
     return DateTime(dt.year, dt.month, dt.day);
   }
