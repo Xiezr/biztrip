@@ -8,6 +8,8 @@ class TravelLocation {
   final Color color;
   final LocationType type;
   final int sortOrder;
+  final int? year;    // 所属年（null=所有月可见，即固定目的地）
+  final int? month;   // 所属月（null=所有月可见）
 
   // 差旅配置（所有天数：正数表示"后"，用 UI ± 号显示方向）
   final int notificationDaysBefore;   // 差旅通知 (-N天)
@@ -17,6 +19,7 @@ class TravelLocation {
   final int confirmationDaysBefore;   // 差旅确认 (-N天)
   final int reportDaysAfter;          // 差旅报告 (+N天)
   final List<String> specialReminder; // 本次差旅特别提醒（分行列表）
+  final List<String> invoicePaths;    // 单据扫描图片路径
 
   const TravelLocation({
     this.id,
@@ -24,6 +27,8 @@ class TravelLocation {
     required this.color,
     this.type = LocationType.fixed,
     this.sortOrder = 0,
+    this.year,
+    this.month,
     this.notificationDaysBefore = 7,
     this.followUpDaysAfter = 3,
     this.preparationTags = const [
@@ -34,6 +39,7 @@ class TravelLocation {
     this.confirmationDaysBefore = 1,
     this.reportDaysAfter = 3,
     this.specialReminder = const ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'],
+    this.invoicePaths = const [],
   });
 
   TravelLocation copyWith({
@@ -42,6 +48,8 @@ class TravelLocation {
     Color? color,
     LocationType? type,
     int? sortOrder,
+    int? year,
+    int? month,
     int? notificationDaysBefore,
     int? followUpDaysAfter,
     List<String>? preparationTags,
@@ -49,6 +57,7 @@ class TravelLocation {
     int? confirmationDaysBefore,
     int? reportDaysAfter,
     List<String>? specialReminder,
+    List<String>? invoicePaths,
   }) {
     return TravelLocation(
       id: id ?? this.id,
@@ -56,6 +65,8 @@ class TravelLocation {
       color: color ?? this.color,
       type: type ?? this.type,
       sortOrder: sortOrder ?? this.sortOrder,
+      year: year ?? this.year,
+      month: month ?? this.month,
       notificationDaysBefore: notificationDaysBefore ?? this.notificationDaysBefore,
       followUpDaysAfter: followUpDaysAfter ?? this.followUpDaysAfter,
       preparationTags: preparationTags ?? this.preparationTags,
@@ -63,6 +74,7 @@ class TravelLocation {
       confirmationDaysBefore: confirmationDaysBefore ?? this.confirmationDaysBefore,
       reportDaysAfter: reportDaysAfter ?? this.reportDaysAfter,
       specialReminder: specialReminder ?? this.specialReminder,
+      invoicePaths: invoicePaths ?? this.invoicePaths,
     );
   }
 
@@ -72,6 +84,8 @@ class TravelLocation {
         'color': color.toARGB32(),
         'type': type.name,
         'sortOrder': sortOrder,
+        'year': year,
+        'month': month,
         'notificationDaysBefore': notificationDaysBefore,
         'followUpDaysAfter': followUpDaysAfter,
         'preparationTags': preparationTags,
@@ -79,6 +93,7 @@ class TravelLocation {
         'confirmationDaysBefore': confirmationDaysBefore,
         'reportDaysAfter': reportDaysAfter,
         'specialReminder': specialReminder,
+        'invoicePaths': invoicePaths,
       };
 
   factory TravelLocation.fromJson(Map<String, dynamic> json) => TravelLocation(
@@ -87,6 +102,8 @@ class TravelLocation {
         color: Color(json['color'] as int),
         type: LocationType.values.byName(json['type'] as String),
         sortOrder: json['sortOrder'] as int? ?? 0,
+        year: json['year'] as int?,
+        month: json['month'] as int?,
         notificationDaysBefore: json['notificationDaysBefore'] as int? ?? 7,
         followUpDaysAfter: json['followUpDaysAfter'] as int? ?? 3,
         preparationTags: _migrateTags((json['preparationTags'] as List<dynamic>?)?.map((e) => e as String).toList()),
@@ -94,6 +111,7 @@ class TravelLocation {
         confirmationDaysBefore: json['confirmationDaysBefore'] as int? ?? 1,
         reportDaysAfter: json['reportDaysAfter'] as int? ?? 3,
         specialReminder: _parseSpecialReminder(json['specialReminder']),
+        invoicePaths: (json['invoicePaths'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
       );
 
   /// 标签迁移：旧版旧标签替换为新默认

@@ -26,7 +26,6 @@ class DayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     if (day == null) return const SizedBox.shrink();
 
-    // 最多取前2个标记
     final colors = marks
         .map((m) => locationMap[m.locationId]?.color)
         .whereType<Color>()
@@ -43,17 +42,16 @@ class DayCell extends StatelessWidget {
       );
     }
 
-    // 有标记：用CustomPaint画斜对角
+    // 有标记：圆形涂抹
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.all(1),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.15), blurRadius: 4, offset: const Offset(0, 2))],
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+        child: ClipOval(
           child: CustomPaint(
             painter: colors.length == 2
                 ? _DiagonalSplitPainter(colors[0], colors[1])
@@ -68,9 +66,8 @@ class DayCell extends StatelessWidget {
   Widget _buildCore(List<Color> colors, bool isToday, bool isCurrentMonth, ThemeData theme) {
     final hasMarks = colors.isNotEmpty;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        shape: BoxShape.circle,
         border: isToday
             ? Border.all(color: theme.colorScheme.primary, width: 2)
             : null,
@@ -94,11 +91,10 @@ class _SolidColorPainter extends CustomPainter {
   _SolidColorPainter(this.color);
   @override
   void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(10));
-    canvas.drawRRect(rrect, Paint()..color = color..isAntiAlias = true);
+    canvas.drawOval(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = color..isAntiAlias = true);
   }
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _SolidColorPainter oldDelegate) => oldDelegate.color != color;
 }
 
 class _DiagonalSplitPainter extends CustomPainter {
@@ -110,17 +106,18 @@ class _DiagonalSplitPainter extends CustomPainter {
     final paint1 = Paint()..color = color1..isAntiAlias = true;
     final paint2 = Paint()..color = color2..isAntiAlias = true;
 
-    // 右上到左下斜角分割
+    // 右上到左下斜角分割（圆形内）
     final path1 = Path()
       ..moveTo(size.width, 0)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
 
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(10));
-    canvas.drawRRect(rrect, paint2);
+    canvas.drawOval(Rect.fromLTWH(0, 0, size.width, size.height), paint2);
+    canvas.clipPath(Path()..addOval(Rect.fromLTWH(0, 0, size.width, size.height)));
     canvas.drawPath(path1, paint1);
   }
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _DiagonalSplitPainter oldDelegate) =>
+      oldDelegate.color1 != color1 || oldDelegate.color2 != color2;
 }

@@ -84,6 +84,7 @@ class CalendarProvider extends ChangeNotifier {
 
   void lockSwipe() {
     _swipeLocked = true;
+    notifyListeners();
   }
 
   void unlockSwipe() {

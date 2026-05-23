@@ -27,5 +27,7 @@ void _requestLocationPermission() {
   try {
     const platform = MethodChannel('com.biztrip.biztrip/location');
     platform.invokeMethod('requestLocationPermission');
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('Location permission request error: $e');
+  }
 }

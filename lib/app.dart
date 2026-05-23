@@ -17,8 +17,23 @@ class BizTripApp extends StatelessWidget {
       title: '差旅日历',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0), brightness: Brightness.light),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1A56DB),
+          brightness: Brightness.light,
+          surface: const Color(0xFFF8FAFC),
+        ),
         useMaterial3: true,
+        fontFamily: 'Roboto',
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.08),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+        ),
       ),
       home: const HomePage(),
     );

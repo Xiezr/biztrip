@@ -86,18 +86,18 @@ class MarkProvider extends ChangeNotifier {
   }
 
   /// 删除某天指定地点的所有标记
-  void removeMarksForDate(int locationId, DateTime date) {
+  Future<void> removeMarksForDate(int locationId, DateTime date) async {
     final d = _normalizeDate(date);
     _marks.removeWhere((m) => m.locationId == locationId && _normalizeDate(m.date) == d);
     notifyListeners();
-    _storage.saveMarks(_marks);
+    await _storage.saveMarks(_marks);
   }
 
   /// 删除指定地点的所有标记（永久删除时使用）
-  void removeMarksByLocation(int locationId) {
+  Future<void> removeMarksByLocation(int locationId) async {
     _marks.removeWhere((m) => m.locationId == locationId);
     notifyListeners();
-    _storage.saveMarks(_marks);
+    await _storage.saveMarks(_marks);
   }
 
   DateTime _normalizeDate(DateTime dt) {

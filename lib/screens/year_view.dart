@@ -16,34 +16,37 @@ class YearView extends StatelessWidget {
     final year = calendarProvider.year;
     final validLocIds = locationProvider.locations.map((l) => l.id!).toSet();
 
-    return Column(
-      children: [
-        // 年份标题 + 导航
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => calendarProvider.setYear(year - 1),
-              ),
-              Text(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity > 200) {
+          calendarProvider.setYear(year - 1);
+        } else if (velocity < -200) {
+          calendarProvider.setYear(year + 1);
+        }
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 年份标题（点击回当年，左右滑切换）
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: GestureDetector(
+              onTap: () => calendarProvider.setYear(DateTime.now().year),
+              child: Text(
                 '$year 年',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 2),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => calendarProvider.setYear(year + 1),
-              ),
-            ],
+            ),
           ),
-        ),
-        // 12宫格
-        Expanded(
+        // 12宫格（居中）
+        Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: GridView.builder(
+              shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
@@ -68,7 +71,8 @@ class YearView extends StatelessWidget {
             ),
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 }
