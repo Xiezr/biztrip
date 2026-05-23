@@ -89,17 +89,33 @@ class TravelLocation {
         sortOrder: json['sortOrder'] as int? ?? 0,
         notificationDaysBefore: json['notificationDaysBefore'] as int? ?? 7,
         followUpDaysAfter: json['followUpDaysAfter'] as int? ?? 3,
-        preparationTags: (json['preparationTags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
-            ['联络当地人员', '交通安排', '行李安排', '酒店住宿', '天气预警', '票据留存'],
+        preparationTags: _migrateTags((json['preparationTags'] as List<dynamic>?)?.map((e) => e as String).toList()),
         reimbursementDaysAfter: json['reimbursementDaysAfter'] as int? ?? 7,
         confirmationDaysBefore: json['confirmationDaysBefore'] as int? ?? 1,
         reportDaysAfter: json['reportDaysAfter'] as int? ?? 3,
         specialReminder: _parseSpecialReminder(json['specialReminder']),
       );
 
+  /// 标签迁移：旧版旧标签替换为新默认
+  static List<String> _migrateTags(List<String>? tags) {
+    if (tags == null) return ['联络当地人员', '交通安排', '行李安排', '酒店住宿', '天气预警', '票据留存'];
+    // 检测是否还包含旧的默认标签（只有2个或包含旧词）
+    if (tags.length <= 2 && tags.every((t) => ['联络', '出行安排', '联络当地人员', '交通安排'].contains(t))) {
+      return ['联络当地人员', '交通安排', '行李安排', '酒店住宿', '天气预警', '票据留存'];
+    }
+    return tags;
+  }
+
   /// 兼容旧版 String 和新版 List of String
   static List<String> _parseSpecialReminder(dynamic value) {
-    if (value is List) return value.map((e) => e as String).toList();
+    if (value is List) {
+      final list = value.map((e) => e as String).toList();
+      // 迁移：旧版空行替换为默认值
+      if (list.every((s) => s.isEmpty) || list.length < 2) {
+        return ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'];
+      }
+      return list;
+    }
     if (value is String) return value.isEmpty ? ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'] : [value];
     return ['证件+电子产品+衣袜+洗护', '差旅相关文件+物资'];
   }

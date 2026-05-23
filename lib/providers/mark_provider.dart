@@ -32,12 +32,14 @@ class MarkProvider extends ChangeNotifier {
     return result;
   }
 
-  /// 获取某月的差旅天数（有标记的天数）
-  int getTravelDaysForMonth(int year, int month) {
+  /// 获取某月的差旅天数（有标记的天数，可选过滤有效目的地）
+  int getTravelDaysForMonth(int year, int month, {Set<int>? validLocationIds}) {
     final days = <int>{};
     for (final m in _marks) {
       if (m.date.year == year && m.date.month == month) {
-        days.add(m.date.day);
+        if (validLocationIds == null || validLocationIds.contains(m.locationId)) {
+          days.add(m.date.day);
+        }
       }
     }
     return days.length;

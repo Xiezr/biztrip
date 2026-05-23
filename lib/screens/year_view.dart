@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/calendar_provider.dart';
 import '../providers/mark_provider.dart';
+import '../providers/location_provider.dart';
 import '../widgets/month_card.dart';
 
 class YearView extends StatelessWidget {
@@ -11,7 +12,9 @@ class YearView extends StatelessWidget {
   Widget build(BuildContext context) {
     final calendarProvider = context.watch<CalendarProvider>();
     final markProvider = context.watch<MarkProvider>();
+    final locationProvider = context.watch<LocationProvider>();
     final year = calendarProvider.year;
+    final validLocIds = locationProvider.locations.map((l) => l.id!).toSet();
 
     return Column(
       children: [
@@ -51,7 +54,7 @@ class YearView extends StatelessWidget {
               itemCount: 12,
               itemBuilder: (context, index) {
                 final month = index + 1;
-                final days = markProvider.getTravelDaysForMonth(year, month);
+                final days = markProvider.getTravelDaysForMonth(year, month, validLocationIds: validLocIds);
                 return MonthCard(
                   year: year,
                   month: month,

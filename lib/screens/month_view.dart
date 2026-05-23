@@ -218,18 +218,7 @@ class _DestGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 按每行3个分组
-    final rows = <List<TravelLocation?>>[];
-    for (int i = 0; i < locations.length; i += 3) {
-      final row = <TravelLocation?>[];
-      for (int j = 0; j < 3; j++) {
-        final idx = i + j;
-        row.add(idx < locations.length ? locations[idx] : null);
-      }
-      rows.add(row);
-    }
-    // 如果最后一行+新建按钮超过3个，加到新行
-    // 始终保证+新建在最后一个位置
+    // 目的地+新建按钮，按每行3个分组，新建按钮始终在最后
     final allSlots = <TravelLocation?>[...locations, null]; // null表示新建按钮
 
     final slotRows = <List<TravelLocation?>>[];
