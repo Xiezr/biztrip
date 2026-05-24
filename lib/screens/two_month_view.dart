@@ -22,7 +22,7 @@ class TwoMonthView extends StatelessWidget {
     final nextMonth = month == 12 ? 1 : month + 1;
     final nextYear = month == 12 ? year + 1 : year;
 
-    final locationMap = {for (final l in locationProvider.locations) l.id!: l};
+    final locationMap = {for (final l in locationProvider.archive) l.id!: l};
 
     return Column(
       children: [

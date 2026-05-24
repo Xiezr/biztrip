@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../models/travel_mark.dart';
 import '../models/travel_location.dart';
 
@@ -23,16 +24,30 @@ class TripNotification {
       TripNotification(locationId: locationId, locationName: locationName, tripDate: tripDate, type: type, message: message, isRead: isRead ?? this.isRead);
 }
 
-enum NotificationType { prepare, confirm, followUp, reimburse, report, reminder }
+enum NotificationType { prepare, confirm, followUp, reimburse, report, reminder, monthlySummary }
 
 class NotificationService extends ChangeNotifier {
   List<TripNotification> _notifications = [];
-  DateTime? _lastEvalDate; // 增量计算：仅日期变化时重算
+  DateTime? _lastEvalDate;
   List<TravelMark>? _lastMarks;
   Map<int, TravelLocation>? _lastLocationMap;
 
   List<TripNotification> get notifications => List.unmodifiable(_notifications);
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  /// 月末汇总通知：根据出差天数分级
+  static String monthlySummaryMessage(int totalDays) {
+    if (totalDays <= 0) return '';
+    if (totalDays <= 3) {
+      return '您本月出差共 $totalDays 天，一切尽在掌握 📋';
+    } else if (totalDays <= 7) {
+      return '您本月出差共 $totalDays 天，奔波不少，好好休息 ☕';
+    } else if (totalDays <= 14) {
+      return '您本月出差共 $totalDays 天，已是半个常旅客了，记得多写点工时 ✈️';
+    } else {
+      return '您本月出差共 $totalDays 天，以路为家，身体要紧！差旅费记得报销 🏨';
+    }
+  }
 
   /// 增量计算：仅当天日期变化或数据变化时才重算
   void evaluate({
@@ -42,14 +57,14 @@ class NotificationService extends ChangeNotifier {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    // 增量判断：日期未变且数据引用未变，跳过计算
+    // 增量判断
     final marksUnchanged = identical(_lastMarks, marks);
     final mapUnchanged = identical(_lastLocationMap, locationMap);
     if (_lastEvalDate != null &&
         _lastEvalDate == todayDate &&
         marksUnchanged &&
         mapUnchanged) {
-      return; // 无变化，直接返回缓存
+      return;
     }
 
     _lastEvalDate = todayDate;
@@ -132,9 +147,74 @@ class NotificationService extends ChangeNotifier {
       }
     }
 
+    // ===== 月末汇总通知 =====
+    final lastDay = DateTime(today.year, today.month + 1, 0);
+    if (todayDate == lastDay) {
+      // 统计当月所有出差天数（去重：同一天不同目的地算1天）
+      final monthMarks = marks.where((m) =>
+        m.date.year == today.year && m.date.month == today.month
+      ).toList();
+      final travelDays = monthMarks.map((m) => m.date).toSet().length;
+
+      final summaryMsg = monthlySummaryMessage(travelDays);
+      if (summaryMsg.isNotEmpty) {
+        newNotifications.add(TripNotification(
+          locationId: -1,  // 特殊 ID：汇总通知，不属于任何目的地
+          locationName: '系统',
+          tripDate: todayDate,
+          type: NotificationType.monthlySummary,
+          message: summaryMsg,
+        ));
+      }
+    }
+
     newNotifications.sort((a, b) => a.tripDate.compareTo(b.tripDate));
     _notifications = newNotifications;
     notifyListeners();
+
+    // 推送到系统通知栏（仅推送当天相关的新通知）
+    _pushToSystem(newNotifications);
+  }
+
+  /// 将通知推送到 Android 系统通知栏
+  Future<void> _pushToSystem(List<TripNotification> notifications) async {
+    const platform = MethodChannel('com.biztrip.biztrip/notification');
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    for (final n in notifications) {
+      // 仅推当天相关通知（出发当天提醒、月末汇总）；其余通知在应用内查看即可
+      final isTodayReminder = n.type == NotificationType.reminder && n.tripDate == todayDate;
+      final isMonthlySummary = n.type == NotificationType.monthlySummary;
+      if (!isTodayReminder && !isMonthlySummary) continue;
+
+      // 按 type 排序编号，确保同类型通知覆盖而非累积
+      final typeIndex = NotificationType.values.indexOf(n.type);
+      final notificationId = n.locationId * 10 + typeIndex;
+
+      try {
+        await platform.invokeMethod('showNotification', {
+          'id': notificationId,
+          'title': _typeTitle(n.type),
+          'body': n.message,
+          'summary': 'Biztrip 差旅提醒',
+        });
+      } catch (_) {
+        // 通知推送失败不阻塞主流程
+      }
+    }
+  }
+
+  static String _typeTitle(NotificationType type) {
+    switch (type) {
+      case NotificationType.prepare: return '差旅准备';
+      case NotificationType.confirm: return '差旅确认';
+      case NotificationType.followUp: return '差旅跟进';
+      case NotificationType.reimburse: return '票据报销';
+      case NotificationType.report: return '差旅报告';
+      case NotificationType.reminder: return '今天出发';
+      case NotificationType.monthlySummary: return '月末汇总';
+    }
   }
 
   void markAllRead() {

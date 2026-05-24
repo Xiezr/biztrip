@@ -6,6 +6,7 @@ class DayCell extends StatelessWidget {
   final int? day;
   final bool isToday;
   final bool isCurrentMonth;
+  final bool isHoliday;
   final List<TravelMark> marks;
   final Map<int, TravelLocation> locationMap;
   final VoidCallback? onTap;
@@ -16,6 +17,7 @@ class DayCell extends StatelessWidget {
     this.day,
     required this.isToday,
     this.isCurrentMonth = true,
+    this.isHoliday = false,
     this.marks = const [],
     this.locationMap = const {},
     this.onTap,
@@ -26,26 +28,26 @@ class DayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     if (day == null) return const SizedBox.shrink();
 
-    final colors = marks
-        .map((m) => locationMap[m.locationId]?.color)
-        .whereType<Color>()
-        .take(2)
-        .toList();
+    // 按 locationId 去重，确保相同目的地不触发对角线分割
+    final seenIds = <int>{};
+    final colors = <Color>[];
+    for (final m in marks) {
+      if (seenIds.add(m.locationId)) {
+        final c = locationMap[m.locationId]?.color;
+        if (c != null) colors.add(c);
+        if (colors.length >= 2) break;
+      }
+    }
 
     final hasMarks = colors.isNotEmpty;
     final theme = Theme.of(context);
 
+    Widget cell;
     if (!hasMarks) {
-      return GestureDetector(
-        onTap: onTap,
-        child: _buildCore(colors, isToday, isCurrentMonth, theme),
-      );
-    }
-
-    // 有标记：圆形涂抹
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      cell = _buildCore(colors, isToday, isCurrentMonth, theme);
+    } else {
+      // 有标记：圆形涂抹
+      cell = Container(
         margin: const EdgeInsets.all(1),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -59,8 +61,36 @@ class DayCell extends StatelessWidget {
             child: _buildCore(colors, isToday, isCurrentMonth, theme),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    // 节假日角标
+    if (isHoliday) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            cell,
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Text(
+                '休',
+                style: TextStyle(
+                  fontSize: fontSize * 0.55,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF007AFF),
+                  height: 1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(onTap: onTap, child: cell);
   }
 
   Widget _buildCore(List<Color> colors, bool isToday, bool isCurrentMonth, ThemeData theme) {

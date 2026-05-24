@@ -55,6 +55,10 @@ class NotificationListPage extends StatelessWidget {
                     icon = Icons.notifications_active;
                     iconColor = Colors.red;
                     break;
+                  case NotificationType.monthlySummary:
+                    icon = Icons.summarize;
+                    iconColor = Colors.deepPurple;
+                    break;
                 }
                 return ListTile(
                   leading: Icon(icon, color: iconColor),

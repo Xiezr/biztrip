@@ -193,17 +193,17 @@ class TravelLocation {
   }
 
   static const presetColors = [
-    Color(0xFFFF6600), Color(0xFFFF9900), Color(0xFFFF3300), Color(0xFFCC5200), Color(0xFFFFBB77),
-    Color(0xFF229922), Color(0xFF00CC00), Color(0xFF339933), Color(0xFF006600), Color(0xFFAAFFAA),
-    Color(0xFF0055AA), Color(0xFF0066CC), Color(0xFF3399FF), Color(0xFF003399), Color(0xFFAADDFF),
-    Color(0xFFDD3377), Color(0xFFFF6699), Color(0xFFFF99CC), Color(0xFFCC3366), Color(0xFFFFCCDD),
+    Color(0xFFFF9500), Color(0xFFFF6D00), Color(0xFFFF3B00), Color(0xFFFF7A00), Color(0xFFFFB340),
+    Color(0xFF34C759), Color(0xFF30D158), Color(0xFF28A745), Color(0xFF00B84A), Color(0xFF5EEA7E),
+    Color(0xFF007AFF), Color(0xFF0066EA), Color(0xFF0055D4), Color(0xFF3B82F6), Color(0xFF60A5FA),
+    Color(0xFFFF2D55), Color(0xFFFF3B6E), Color(0xFFFF6482), Color(0xFFE02D4E), Color(0xFFFF8FA8),
   ];
 
   /// 色系分组，用于颜色选择器
   static const Map<String, List<Color>> colorFamilies = {
-    '橙': [Color(0xFFFF6600), Color(0xFFFF9900), Color(0xFFFF3300), Color(0xFFCC5200), Color(0xFFFFBB77)],
-    '绿': [Color(0xFF229922), Color(0xFF00CC00), Color(0xFF339933), Color(0xFF006600), Color(0xFFAAFFAA)],
-    '蓝': [Color(0xFF0055AA), Color(0xFF0066CC), Color(0xFF3399FF), Color(0xFF003399), Color(0xFFAADDFF)],
-    '粉': [Color(0xFFDD3377), Color(0xFFFF6699), Color(0xFFFF99CC), Color(0xFFCC3366), Color(0xFFFFCCDD)],
+    '橙': [Color(0xFFFF9500), Color(0xFFFF6D00), Color(0xFFFF3B00), Color(0xFFFF7A00), Color(0xFFFFB340)],
+    '绿': [Color(0xFF34C759), Color(0xFF30D158), Color(0xFF28A745), Color(0xFF00B84A), Color(0xFF5EEA7E)],
+    '蓝': [Color(0xFF007AFF), Color(0xFF0066EA), Color(0xFF0055D4), Color(0xFF3B82F6), Color(0xFF60A5FA)],
+    '粉': [Color(0xFFFF2D55), Color(0xFFFF3B6E), Color(0xFFFF6482), Color(0xFFE02D4E), Color(0xFFFF8FA8)],
   };
 }

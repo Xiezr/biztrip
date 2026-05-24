@@ -20,31 +20,21 @@ class MonthView extends StatelessWidget {
     final year = calendarProvider.year;
     final month = calendarProvider.month;
     final marksByDay = markProvider.getMarksForMonth(year, month);
-    final allLocations = locationProvider.locations;
-    // archivedLocations 不再需要用于 locationMap（已在方案B中移除）
 
-    // 活跃目的地跨月自动清除
-    final rawActiveId = calendarProvider.activeLocationId;
-    final activeId = (rawActiveId != null) ? () {
-      final loc = locationProvider.getById(rawActiveId);
-      if (loc != null && !loc.belongsTo(year, month)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => calendarProvider.setActiveLocation(null));
-        return null;
-      }
-      return rawActiveId;
-    }() : null;
+    // 活跃目的地不再自动清除（修复 bug：global 目的地无需当月有 mark 即可选中）
+    final activeId = calendarProvider.activeLocationId;
 
-    // locationMap 仅含活跃目的地（不含存档），用于日历格子颜色渲染
+    // locationMap：使用 archive（第1层）渲染日历格子颜色
+    // archive 为全局可见，历史目的地不会被删除影响
+    final archiveLocations = locationProvider.archive;
     final locationMap = <int, TravelLocation>{};
-    for (final l in allLocations) {
+    for (final l in archiveLocations) {
       if (l.id != null) locationMap[l.id!] = l;
     }
 
-    // 目的地列表：仅显示属于当前月或全局的目的地
-    final activeLocIds = marksByDay.values.expand((list) => list).map((m) => m.locationId).toSet();
-    final monthLocations = allLocations.where((l) =>
-      l.id != null && l.belongsTo(year, month) &&
-      (activeLocIds.contains(l.id) || l.id == activeId)
+    // 目的地列表：展示当月的所有 archive 目的地（不再要求必须有 mark）
+    final monthLocations = archiveLocations.where((l) =>
+      l.id != null && l.belongsTo(year, month)
     ).toList();
 
     return GestureDetector(
@@ -136,7 +126,7 @@ class MonthView extends StatelessWidget {
                 locations: monthLocations,
                 activeId: activeId,
                 onTap: (id) => calendarProvider.setActiveLocation(id),
-                onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id))),
+                onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id, viewYear: year, viewMonth: month))),
                 onAdd: () => _addTempLocation(context, year: year, month: month),
               ),
               Padding(
@@ -157,18 +147,21 @@ class MonthView extends StatelessWidget {
   void _addTempLocation(BuildContext context, {required int year, required int month}) {
     final locationProvider = context.read<LocationProvider>();
     final calendarProvider = context.read<CalendarProvider>();
-    // 仅显示当月或全局的临时目的地
-    final existing = locationProvider.locations.where((l) =>
-      l.scope == LocationScope.month && l.belongsTo(year, month)
-    ).toList();
-    final archived = locationProvider.archive;
+    // 全部目的地（不分月过滤，统一可选）
+    final existing = locationProvider.locations.toList();
 
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => SafeArea(
+      useSafeArea: true,
+      backgroundColor: const Color(0xFFF9F5F0),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        mainAxisSize: MainAxisSize.min,
+        children: [
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('选择或新建目的地', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
             if (existing.isNotEmpty) ...[
               const Divider(height: 1),
@@ -178,27 +171,10 @@ class MonthView extends StatelessWidget {
                   dense: true,
                   leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
                   title: Text(loc.name, style: const TextStyle(fontSize: 14)),
-                  onTap: () { Navigator.pop(ctx); calendarProvider.setActiveLocation(loc.id); },
-                )).toList()),
-              ),
-            ],
-            if (archived.isNotEmpty) ...[
-              const Divider(height: 1),
-              Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 2), child: Row(children: [
-                Text('已存档', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-              ])),
-              SizedBox(
-                height: (archived.length * 44.0).clamp(0, 180),
-                child: ListView(children: archived.map((loc) => ListTile(
-                  dense: true,
-                  leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
-                  title: Text(loc.name, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                   onTap: () {
-                    final newId = context.read<LocationProvider>().copyFromArchive(loc.id!, year: year, month: month);
                     Navigator.pop(ctx);
-                    if (newId > 0) {
-                      calendarProvider.setActiveLocation(newId);
-                    }
+                    locationProvider.activateInMonth(loc.id!, year, month);
+                    calendarProvider.setActiveLocation(loc.id);
                   },
                 )).toList()),
               ),
@@ -232,11 +208,39 @@ class MonthView extends StatelessWidget {
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
                 final newId = context.read<LocationProvider>().addTemporaryLocation(controller.text.trim(), year: year, month: month);
-                context.read<CalendarProvider>().setActiveLocation(newId);
-                Navigator.pop(ctx);
+                if (newId == -1) {
+                  // 同名冲突：弹出选择框
+                  Navigator.pop(ctx);
+                  _showConflictDialog(context, name: controller.text.trim());
+                } else {
+                  context.read<CalendarProvider>().setActiveLocation(newId);
+                  Navigator.pop(ctx);
+                }
               }
             },
             child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConflictDialog(BuildContext context, {required String name}) {
+    final locationProvider = context.read<LocationProvider>();
+    final existing = locationProvider.locations.where((l) => l.name == name).first;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('名称冲突'),
+        content: Text('已存在同名目的地"$name"，是否直接使用已有的？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<CalendarProvider>().setActiveLocation(existing.id);
+            },
+            child: const Text('使用已有的'),
           ),
         ],
       ),

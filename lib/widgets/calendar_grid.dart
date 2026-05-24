@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/calendar_utils.dart';
 import '../models/travel_mark.dart';
 import '../models/travel_location.dart';
+import '../services/holiday_service.dart';
 import 'day_cell.dart';
 
 class CalendarGrid extends StatelessWidget {
@@ -26,6 +27,7 @@ class CalendarGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final grid = CalendarUtils.buildGrid(year, month);
     final today = DateTime.now();
+    final holidayService = HolidayService();
     final cellSize = compact ? 42.0 : 48.0;
     final dayFontSize = compact ? 13.0 : 15.0;
     final headerFontSize = compact ? 11.0 : 13.0;
@@ -60,6 +62,8 @@ class CalendarGrid extends StatelessWidget {
 
                 final dayMarks = marksByDay[day] ?? [];
                 final isToday = day == today.day && month == today.month && year == today.year;
+                final date = DateTime(year, month, day);
+                final isHoliday = holidayService.isHoliday(date);
 
                 return SizedBox(
                   width: cellSize,
@@ -67,10 +71,11 @@ class CalendarGrid extends StatelessWidget {
                   child: DayCell(
                     day: day,
                     isToday: isToday,
+                    isHoliday: isHoliday,
                     marks: dayMarks,
                     locationMap: locationMap,
                     fontSize: dayFontSize,
-                    onTap: onTapDay != null ? () => onTapDay!(DateTime(year, month, day)) : null,
+                    onTap: onTapDay != null ? () => onTapDay!(date) : null,
                   ),
                 );
               }),

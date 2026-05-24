@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -14,14 +13,19 @@ class StorageService {
 
   Future<void> init() async {
     if (_initialized) return;
-    final dir = await getApplicationDocumentsDirectory();
-    _appDir = '${dir.path}/biztrip';
-    final appDir = Directory(_appDir);
-    if (!await appDir.exists()) {
-      await appDir.create(recursive: true);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      _appDir = '${dir.path}/biztrip';
+      final appDir = Directory(_appDir);
+      if (!await appDir.exists()) {
+        await appDir.create(recursive: true);
+      }
+      _initialized = true;
+      debugPrint('Storage path: $_appDir');
+    } catch (e, stack) {
+      debugPrint('StorageService.init error: $e\n$stack');
+      rethrow;
     }
-    _initialized = true;
-    debugPrint('Storage path: $_appDir');
   }
 
   // ==================== 工具方法 ====================
@@ -116,7 +120,7 @@ class StorageService {
       return data.map((e) => TravelLocation.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       debugPrint('loadLocations parse error: $e');
-      return _defaultLocations();
+      return [];
     }
   }
 
@@ -130,13 +134,27 @@ class StorageService {
     }
   }
 
-  List<TravelLocation> _defaultLocations() {
-    return [
-      TravelLocation(id: 1, name: '目的地1', color: const Color(0xFFFF6600), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 0),
-      TravelLocation(id: 2, name: '目的地2', color: const Color(0xFF2196F3), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 1),
-      TravelLocation(id: 3, name: '目的地3', color: const Color(0xFF4CAF50), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 2),
-      TravelLocation(id: 4, name: '目的地4', color: const Color(0xFFFF9800), type: LocationType.fixed, scope: LocationScope.global, sortOrder: 3),
-    ];
+  // ==================== 存档（Archive 第1层） ====================
+
+  Future<List<TravelLocation>> loadArchive() async {
+    await init();
+    try {
+      final data = await _loadJson('$_appDir/archive.json', 'loadArchive');
+      return data.map((e) => TravelLocation.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('loadArchive parse error: $e');
+      return [];
+    }
+  }
+
+  Future<void> saveArchive(List<TravelLocation> archive) async {
+    await init();
+    try {
+      final list = archive.map((l) => l.toJson()).toList();
+      await _safeWrite('$_appDir/archive.json', jsonEncode(list));
+    } catch (e) {
+      debugPrint('saveArchive error: $e');
+    }
   }
 
   // ==================== 标记 ====================
@@ -162,26 +180,46 @@ class StorageService {
     }
   }
 
-  // ==================== 存档 ====================
+  // ==================== 存档迁移 ====================
 
-  Future<List<TravelLocation>> loadArchive() async {
+  /// 加载旧存档数据（仅迁移时使用，迁移后删除文件）
+  Future<List<TravelLocation>> loadArchiveLegacy() async {
     await init();
     try {
-      final data = await _loadJson('$_appDir/archive.json', 'loadArchive');
+      final data = await _loadJson('$_appDir/archive.json', 'loadArchiveLegacy');
       return data.map((e) => TravelLocation.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('loadArchive parse error: $e');
+      debugPrint('loadArchiveLegacy parse error: $e');
       return [];
     }
   }
 
-  Future<void> saveArchive(List<TravelLocation> archive) async {
+  /// 迁移完成：删除旧存档文件
+  Future<void> deleteArchiveFile() async {
     await init();
     try {
-      final list = archive.map((a) => a.toJson()).toList();
-      await _safeWrite('$_appDir/archive.json', jsonEncode(list));
+      final file = File('$_appDir/archive.json');
+      if (await file.exists()) await file.delete();
     } catch (e) {
-      debugPrint('saveArchive error: $e');
+      debugPrint('deleteArchiveFile error: $e');
+    }
+  }
+
+  // ==================== 迁移标记 ====================
+
+  /// 检查是否已完成旧版→新版数据迁移
+  Future<bool> isLegacyMigrated() async {
+    await init();
+    return File('$_appDir/.migrated').exists();
+  }
+
+  /// 写入迁移完成标记，后续启动跳过迁移流程
+  Future<void> markLegacyMigrated() async {
+    await init();
+    try {
+      await File('$_appDir/.migrated').writeAsString('done');
+    } catch (e) {
+      debugPrint('markLegacyMigrated error: $e');
     }
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/travel_mark.dart';
 import '../database/storage_service.dart';
@@ -6,12 +7,33 @@ class MarkProvider extends ChangeNotifier {
   List<TravelMark> _marks = [];
   int _nextId = 1;
   final StorageService _storage = StorageService();
+  Timer? _saveTimer;
 
   List<TravelMark> get marks => List.unmodifiable(_marks);
 
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 延迟写入：500ms 内多次变更合并为一次写入
+  void _debouncedSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 500), () async {
+      await _storage.saveMarks(_marks);
+    });
+  }
+
   Future<void> load() async {
-    _marks = await _storage.loadMarks();
-    _nextId = _marks.fold(0, (max, m) => m.id != null && m.id! > max ? m.id! : max) + 1;
+    try {
+      _marks = await _storage.loadMarks();
+      _nextId = _marks.fold(0, (max, m) => m.id != null && m.id! > max ? m.id! : max) + 1;
+    } catch (e, stack) {
+      debugPrint('MarkProvider.load error: $e\n$stack');
+      _marks = [];
+      _nextId = 1;
+    }
     notifyListeners();
   }
 
@@ -82,7 +104,7 @@ class MarkProvider extends ChangeNotifier {
       _marks.add(TravelMark(id: _nextId++, locationId: locationId, date: d));
     }
     notifyListeners();
-    await _storage.saveMarks(_marks);
+    _debouncedSave();
   }
 
   /// 删除某天指定地点的所有标记
@@ -90,14 +112,23 @@ class MarkProvider extends ChangeNotifier {
     final d = _normalizeDate(date);
     _marks.removeWhere((m) => m.locationId == locationId && _normalizeDate(m.date) == d);
     notifyListeners();
-    await _storage.saveMarks(_marks);
+    _debouncedSave();
   }
 
   /// 删除指定地点的所有标记（永久删除时使用）
   Future<void> removeMarksByLocation(int locationId) async {
     _marks.removeWhere((m) => m.locationId == locationId);
     notifyListeners();
+    _debouncedSave();
+    // 立即刷新一次，确保删除操作持久化
     await _storage.saveMarks(_marks);
+  }
+
+  /// 删除指定地点在某月的所有标记
+  Future<void> removeMarksForMonth(int locationId, int year, int month) async {
+    _marks.removeWhere((m) => m.locationId == locationId && m.date.year == year && m.date.month == month);
+    notifyListeners();
+    _debouncedSave();
   }
 
   DateTime _normalizeDate(DateTime dt) {

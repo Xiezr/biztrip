@@ -10,11 +10,12 @@ class YearView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final calendarProvider = context.watch<CalendarProvider>();
+    final calendarProvider = context.read<CalendarProvider>();
+    final year = context.select<CalendarProvider, int>((p) => p.year);
     final markProvider = context.watch<MarkProvider>();
-    final locationProvider = context.watch<LocationProvider>();
-    final year = calendarProvider.year;
-    final validLocIds = locationProvider.locations.map((l) => l.id!).toSet();
+    final locationProvider = context.read<LocationProvider>();
+    // 只用 locations（reference 层）构建 validLocIds，确保 scope 过滤生效
+    final validLocIds = locationProvider.locationIdsForYear(year);
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,

@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/travel_location.dart';
 import '../providers/location_provider.dart';
+import '../providers/mark_provider.dart';
+import '../widgets/color_family_picker.dart';
+import '../widgets/day_field.dart';
 
 class _ReminderItem {
   final String label;
@@ -14,7 +17,9 @@ class _ReminderItem {
 
 class LocationEditPage extends StatefulWidget {
   final int locationId;
-  const LocationEditPage({super.key, required this.locationId});
+  final int? viewYear;
+  final int? viewMonth;
+  const LocationEditPage({super.key, required this.locationId, this.viewYear, this.viewMonth});
 
   @override
   State<LocationEditPage> createState() => _LocationEditPageState();
@@ -36,8 +41,8 @@ class _LocationEditPageState extends State<LocationEditPage> {
     _nameCtrl = TextEditingController(text: loc.name);
     _tagCtrl = TextEditingController();
     _reminderItems = [
-      _ReminderItem('差旅通知', loc.notificationDaysBefore, true),
-      _ReminderItem('差旅确认', loc.confirmationDaysBefore, true),
+      _ReminderItem('差旅通知', -loc.notificationDaysBefore, true),
+      _ReminderItem('差旅确认', -loc.confirmationDaysBefore, true),
       _ReminderItem('差旅跟进', loc.followUpDaysAfter, false),
       _ReminderItem('差旅报告', loc.reportDaysAfter, false),
       _ReminderItem('票据报销', loc.reimbursementDaysAfter, false),
@@ -57,8 +62,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
 
   List<(int, _ReminderItem)> _sortedWithIndex() {
     final indexed = _reminderItems.asMap().entries.toList()
-      ..sort((a, b) => (a.value.isBefore ? -a.value.value : a.value.value)
-          .compareTo(b.value.isBefore ? -b.value.value : b.value.value));
+      ..sort((a, b) => a.value.value.compareTo(b.value.value));
     return indexed.map((e) => (e.key, e.value)).toList();
   }
 
@@ -73,9 +77,9 @@ class _LocationEditPageState extends State<LocationEditPage> {
     context.read<LocationProvider>().updateLocationFull(
       widget.locationId,
       name: _nameCtrl.text.trim(), color: _selectedColor,
-      notificationDaysBefore: val('差旅通知'), followUpDaysAfter: val('差旅跟进'),
+      notificationDaysBefore: val('差旅通知').abs(), followUpDaysAfter: val('差旅跟进'),
       preparationTags: _tags, reimbursementDaysAfter: val('票据报销'),
-      confirmationDaysBefore: val('差旅确认'), reportDaysAfter: val('差旅报告'),
+      confirmationDaysBefore: val('差旅确认').abs(), reportDaysAfter: val('差旅报告'),
       specialReminder: _reminderCtrls.map((c) => c.text.trim()).toList(),
       invoicePaths: _invoicePaths,
     );
@@ -96,7 +100,9 @@ class _LocationEditPageState extends State<LocationEditPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('拍照失败: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('拍照失败，请确认已授权相机权限。错误详情：$e')),
+        );
       }
     }
   }
@@ -119,7 +125,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
                     IconButton(
                       icon: const Icon(Icons.remove),
                       onPressed: () => setDState(() {
-                        temp = (temp - 1).clamp(0, 365);
+                        temp = (temp - 1).clamp(-365, 365);
                         manualCtrl.text = '$temp';
                       }),
                     ),
@@ -128,26 +134,26 @@ class _LocationEditPageState extends State<LocationEditPage> {
                       child: TextField(
                         controller: manualCtrl,
                         textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.numberWithOptions(signed: true),
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                         decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(vertical: 8)),
                         onChanged: (v) {
                           final parsed = int.tryParse(v);
-                          if (parsed != null) setDState(() => temp = parsed.clamp(0, 365));
+                          if (parsed != null) setDState(() => temp = parsed.clamp(-365, 365));
                         },
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.add),
                       onPressed: () => setDState(() {
-                        temp = (temp + 1).clamp(0, 365);
+                        temp = (temp + 1).clamp(-365, 365);
                         manualCtrl.text = '$temp';
                       }),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('0 ~ 365 天', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                Text('-365 ~ 365 天', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
               ],
             ),
           ),
@@ -303,7 +309,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
           // 颜色选择：4色系 × 5色阶
           Text('颜色', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          _ColorPicker(selected: _selectedColor, onChanged: (c) => setState(() => _selectedColor = c)),
+          ColorFamilyPicker(selected: _selectedColor, onChanged: (c) => setState(() => _selectedColor = c)),
           const SizedBox(height: 20),
 
           // 提醒事项（可增删调整顺序）
@@ -336,7 +342,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
                     child: Icon(Icons.drag_handle, size: 18, color: Colors.grey),
                   )),
                   Expanded(
-                    child: _DayField(
+                    child: DayField(
                       label: item.label, value: item.value, isBefore: item.isBefore,
                       onTap: () => _showDayPicker(item.label, item.value, item.isBefore, (v) {
                         setState(() => _reminderItems[i] = _reminderItems[i].copyWith(value: v));
@@ -379,13 +385,13 @@ class _LocationEditPageState extends State<LocationEditPage> {
             GestureDetector(
               onTap: () => _showAddTagDialog(context),
               child: Container(
-                width: 28, height: 28,
+                width: 30, height: 30,
                 decoration: BoxDecoration(
                   color: Colors.grey[50],
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[200]!),
                 ),
-                child: const Icon(Icons.add, size: 16, color: Colors.grey),
+                child: const Icon(Icons.add_circle_outline, size: 20, color: Colors.grey),
               ),
             ),
           ]),
@@ -428,23 +434,12 @@ class _LocationEditPageState extends State<LocationEditPage> {
 
           // 单据扫描
           Row(children: [
-            Text('单据扫描', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text('单据扫描', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const Spacer(),
-            GestureDetector(
-              onTap: () => _captureInvoice(),
-              child: Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: const Icon(Icons.add, size: 16, color: Colors.grey),
-              ),
-            ),
+            IconButton(icon: const Icon(Icons.add_circle_outline, size: 22), onPressed: () => _captureInvoice()),
           ]),
           const SizedBox(height: 4),
-          Text('本次差旅的费用及发票', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text('本次差旅的费用及发票', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
           const SizedBox(height: 8),
           if (_invoicePaths.isEmpty)
             Container(
@@ -492,9 +487,19 @@ class _LocationEditPageState extends State<LocationEditPage> {
                   label: const Text('临时删除', style: TextStyle(fontSize: 13)),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
                   onPressed: () {
-                    context.read<LocationProvider>().archiveLocation(widget.locationId);
+                    final locProvider = context.read<LocationProvider>();
+                    final loc = locProvider.getById(widget.locationId);
+                    if (loc?.scope == LocationScope.global && widget.viewYear != null && widget.viewMonth != null) {
+                      // global 目的地：移除当月标记
+                      context.read<MarkProvider>().removeMarksForMonth(
+                        widget.locationId, widget.viewYear!, widget.viewMonth!,
+                      );
+                    }
+                    locProvider.archiveLocation(widget.locationId);
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已存档，历史标记保留')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已从可选目的地中移除，历史记录保留')),
+                    );
                   },
                 ),
               ),
@@ -509,7 +514,7 @@ class _LocationEditPageState extends State<LocationEditPage> {
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('确认删除'),
-                        content: const Text('永久删除后将无法恢复'),
+                        content: const Text('永久删除后将无法恢复，但历史差旅记录将保留'),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
                           TextButton(
@@ -529,111 +534,6 @@ class _LocationEditPageState extends State<LocationEditPage> {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 色系选择器
-class _ColorPicker extends StatelessWidget {
-  final Color selected;
-  final ValueChanged<Color> onChanged;
-
-  const _ColorPicker({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    String? activeFamily;
-    for (final entry in TravelLocation.colorFamilies.entries) {
-      if (entry.value.contains(selected)) { activeFamily = entry.key; break; }
-    }
-
-    const familyLabels = {'橙': '橙色系', '绿': '绿色系', '蓝': '蓝色系', '粉': '粉色系'};
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // 色系选择（居中 椭圆形）
-        Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: TravelLocation.colorFamilies.keys.map((family) {
-              final isActive = family == activeFamily;
-              final colors = TravelLocation.colorFamilies[family]!;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: GestureDetector(
-                  onTap: () => onChanged(colors[2]),
-                  child: Container(
-                    width: 60, height: 32,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [colors.first, colors.last]),
-                      borderRadius: BorderRadius.circular(16),
-                      border: isActive ? Border.all(color: Colors.black87, width: 2) : null,
-                    ),
-                    child: Center(child: Text(familyLabels[family]!, style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500))),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        // 色阶选择（居中 圆形）
-        if (activeFamily != null) ...[
-          const SizedBox(height: 10),
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: TravelLocation.colorFamilies[activeFamily]!.map((c) {
-                final isActive = c == selected;
-                return GestureDetector(
-                  onTap: () => onChanged(c),
-                  child: Container(
-                    width: 36, height: 36, margin: const EdgeInsets.symmetric(horizontal: 5),
-                    decoration: BoxDecoration(
-                      color: c,
-                      shape: BoxShape.circle,
-                      border: isActive ? Border.all(color: Colors.black87, width: 3) : null,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// 天数字段（点击弹出选择器）
-class _DayField extends StatelessWidget {
-  final String label;
-  final int value;
-  final bool isBefore;
-  final VoidCallback onTap;
-
-  const _DayField({required this.label, required this.value, required this.isBefore, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final sign = isBefore ? '-' : '+';
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Row(children: [
-          Text(label, style: const TextStyle(fontSize: 15)),
-          const Spacer(),
-          Text('$sign$value天', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isBefore ? Colors.blue : Colors.orange)),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
-        ]),
       ),
     );
   }
