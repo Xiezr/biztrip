@@ -27,27 +27,47 @@ enum NotificationType { prepare, confirm, followUp, reimburse, report, reminder 
 
 class NotificationService extends ChangeNotifier {
   List<TripNotification> _notifications = [];
+  DateTime? _lastEvalDate; // 增量计算：仅日期变化时重算
+  List<TravelMark>? _lastMarks;
+  Map<int, TravelLocation>? _lastLocationMap;
 
   List<TripNotification> get notifications => List.unmodifiable(_notifications);
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
+  /// 增量计算：仅当天日期变化或数据变化时才重算
   void evaluate({
     required List<TravelMark> marks,
     required Map<int, TravelLocation> locationMap,
   }) {
-    _notifications.clear();
     final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    // 增量判断：日期未变且数据引用未变，跳过计算
+    final marksUnchanged = identical(_lastMarks, marks);
+    final mapUnchanged = identical(_lastLocationMap, locationMap);
+    if (_lastEvalDate != null &&
+        _lastEvalDate == todayDate &&
+        marksUnchanged &&
+        mapUnchanged) {
+      return; // 无变化，直接返回缓存
+    }
+
+    _lastEvalDate = todayDate;
+    _lastMarks = marks;
+    _lastLocationMap = locationMap;
+
+    final newNotifications = <TripNotification>[];
 
     for (final mark in marks) {
       final loc = locationMap[mark.locationId];
       if (loc == null) continue;
 
-      final diff = mark.date.difference(today).inDays;
+      final diff = mark.date.difference(todayDate).inDays;
       final reminderText = loc.specialReminder.where((s) => s.trim().isNotEmpty).join('\n');
 
       // 差旅通知（提前N天）
       if (diff > 0 && diff <= loc.notificationDaysBefore) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -58,7 +78,7 @@ class NotificationService extends ChangeNotifier {
 
       // 差旅确认（提前N天）
       if (diff > 0 && diff <= loc.confirmationDaysBefore) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -69,7 +89,7 @@ class NotificationService extends ChangeNotifier {
 
       // 当天
       if (diff == 0) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -80,7 +100,7 @@ class NotificationService extends ChangeNotifier {
 
       // 差旅跟进（结束后N天内）
       if (diff < 0 && diff.abs() <= loc.followUpDaysAfter) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -91,7 +111,7 @@ class NotificationService extends ChangeNotifier {
 
       // 票据报销（结束后N天内）
       if (diff < 0 && diff.abs() <= loc.reimbursementDaysAfter) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -102,7 +122,7 @@ class NotificationService extends ChangeNotifier {
 
       // 差旅报告（结束后N天内）
       if (diff < 0 && diff.abs() <= loc.reportDaysAfter) {
-        _notifications.add(TripNotification(
+        newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
@@ -112,7 +132,8 @@ class NotificationService extends ChangeNotifier {
       }
     }
 
-    _notifications.sort((a, b) => a.tripDate.compareTo(b.tripDate));
+    newNotifications.sort((a, b) => a.tripDate.compareTo(b.tripDate));
+    _notifications = newNotifications;
     notifyListeners();
   }
 

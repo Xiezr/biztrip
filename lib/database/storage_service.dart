@@ -31,7 +31,7 @@ class StorageService {
     final file = File(filePath);
     if (!await file.exists()) return null;
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final backupPath = '${filePath}.backup-$timestamp';
+    final backupPath = '$filePath.backup-$timestamp';
     try {
       await file.copy(backupPath);
       // 只保留最近5个备份
