@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -15,10 +16,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +44,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // 边到边显示：让内容延伸到导航栏下方（最佳实践，配合 styles.xml 透明导航栏 + Flutter edgeToEdge）
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         // 创建通知渠道（Android 8.0+）
         createNotificationChannel()
@@ -169,13 +175,50 @@ class MainActivity : FlutterActivity() {
             if (resultCode == Activity.RESULT_OK) {
                 val photoFile = pendingPhotoFile
                 Log.d("BiztripCamera", "onActivityResult OK, photoFile=$photoFile, exists=${photoFile?.exists()}")
+
                 if (photoFile != null && photoFile.exists()) {
+                    // 路径 1：EXTRA_OUTPUT 生效，文件已在预期位置
+                    Log.d("BiztripCamera", "Path 1: file at expected location")
                     pendingCameraResult?.success(photoFile.absolutePath)
                 } else {
-                    pendingCameraResult?.error("FILE_MISSING", "Photo file not found: ${photoFile?.absolutePath}", null)
+                    // 路径 2：尝试从 data 获取 Bitmap 缩略图（兼容忽略 EXTRA_OUTPUT 的相机）
+                    val bitmap = data?.extras?.get("data") as? Bitmap
+                    if (bitmap != null) {
+                        val targetFile = if (photoFile != null) {
+                            photoFile.parentFile?.mkdirs()
+                            photoFile
+                        } else {
+                            // Activity 被销毁后 pendingPhotoFile 丢失，重建文件路径
+                            val dir = File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "biztrip")
+                            if (!dir.exists()) dir.mkdirs()
+                            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            File(dir, "${ts}_recovered.jpg")
+                        }
+                        try {
+                            FileOutputStream(targetFile).use { out ->
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                            }
+                            Log.d("BiztripCamera", "Path 2: saved bitmap to ${targetFile.absolutePath}")
+                            pendingCameraResult?.success(targetFile.absolutePath)
+                        } catch (e: Exception) {
+                            Log.e("BiztripCamera", "Bitmap save failed", e)
+                            pendingCameraResult?.error("FILE_SAVE_ERROR", e.message, Log.getStackTraceString(e))
+                        }
+                    } else {
+                        // 路径 3：无 Bitmap，扫描目录找最近写入的文件（Activity 销毁后相机可能已写入）
+                        val dir = File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "biztrip")
+                        val latest = dir.listFiles()?.filter { it.extension == "jpg" }?.maxByOrNull { it.lastModified() }
+                        if (latest != null) {
+                            Log.d("BiztripCamera", "Path 3: recovered ${latest.absolutePath} (lastModified=${latest.lastModified()})")
+                            pendingCameraResult?.success(latest.absolutePath)
+                        } else {
+                            Log.e("BiztripCamera", "All paths exhausted, no file found")
+                            pendingCameraResult?.error("FILE_MISSING",
+                                "Photo file not found at ${photoFile?.absolutePath} and no bitmap or directory fallback available", null)
+                        }
+                    }
                 }
             } else {
-                // 用户取消拍照
                 Log.d("BiztripCamera", "onActivityResult cancelled or error, resultCode=$resultCode")
                 pendingCameraResult?.success(null)
             }

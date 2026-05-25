@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../theme/clay_colors.dart';
+import '../theme/clay_container.dart';
+import '../theme/clay_input.dart';
 import '../providers/calendar_provider.dart';
 import '../providers/mark_provider.dart';
 import '../providers/location_provider.dart';
@@ -13,56 +16,75 @@ class MonthView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final calendarProvider = context.watch<CalendarProvider>();
+    final year = context.select<CalendarProvider, int>((p) => p.year);
+    final month = context.select<CalendarProvider, int>((p) => p.month);
+    final activeId = context.select<CalendarProvider, int?>((p) => p.activeLocationId);
+    final calendarProvider = context.read<CalendarProvider>();
     final markProvider = context.watch<MarkProvider>();
-    final locationProvider = context.watch<LocationProvider>();
+    final locationProvider = context.read<LocationProvider>();
+    final archiveLocations = context.select<LocationProvider, List<TravelLocation>>((p) => p.archive);
+    final locations = context.select<LocationProvider, List<TravelLocation>>((p) => p.locations);
 
-    final year = calendarProvider.year;
-    final month = calendarProvider.month;
     final marksByDay = markProvider.getMarksForMonth(year, month);
 
-    // 活跃目的地不再自动清除（修复 bug：global 目的地无需当月有 mark 即可选中）
-    final activeId = calendarProvider.activeLocationId;
-
-    // locationMap：使用 archive（第1层）渲染日历格子颜色
-    // archive 为全局可见，历史目的地不会被删除影响
-    final archiveLocations = locationProvider.archive;
+    // locationMap：使用 archive（第1层）渲染日历格子颜色，避免 id! 断言
     final locationMap = <int, TravelLocation>{};
     for (final l in archiveLocations) {
-      if (l.id != null) locationMap[l.id!] = l;
+      final id = l.id;
+      if (id != null) locationMap[id] = l;
     }
 
-    // 目的地列表：展示当月的所有 archive 目的地（不再要求必须有 mark）
-    final monthLocations = archiveLocations.where((l) =>
-      l.id != null && l.belongsTo(year, month)
-    ).toList();
+    // 目的地列表：当月/未来月仅显示 reference 层中存在的，历史月显示全部 archive
+    final dateNow = DateTime.now();
+    final isCurrentOrFuture = (year > dateNow.year) || (year == dateNow.year && month >= dateNow.month);
+    final referenceIds = locations.map((l) => l.id).whereType<int>().toSet();
+    final monthLocations = archiveLocations.where((l) {
+      final id = l.id;
+      if (id == null || !l.belongsTo(year, month)) return false;
+      if (!isCurrentOrFuture) return true;
+      return referenceIds.contains(id);
+    }).toList();
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
-        if (velocity > 200) {
+        if (velocity > CalendarUtils.swipeThreshold) {
           calendarProvider.goToPreviousMonth();
-        } else if (velocity < -200) {
+        } else if (velocity < -CalendarUtils.swipeThreshold) {
           calendarProvider.goToNextMonth();
         }
       },
       child: Column(
       children: [
-        // 月份标题
+        // 月份标题行（箭头 + 标题 + 箭头），内容整体下移
+        const SizedBox(height: 12),
         Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: GestureDetector(
-            onTap: () => calendarProvider.setViewMode(ViewMode.year),
-            child: Text('$year年 ${CalendarUtils.monthName(month)}', textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: 1)),
+          padding: const EdgeInsets.only(bottom: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, size: 26),
+                onPressed: () => calendarProvider.goToPreviousMonth(),
+              ),
+              GestureDetector(
+                onTap: () => calendarProvider.setViewMode(ViewMode.year),
+                child: Text('$year年 ${CalendarUtils.monthName(month)}', textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: 1)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, size: 26),
+                onPressed: () => calendarProvider.goToNextMonth(),
+              ),
+            ],
           ),
         ),
         // 日历（61.8%）
         Flexible(
           flex: 618,
           child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: CalendarGrid(
                 year: year,
                 month: month,
@@ -125,6 +147,7 @@ class MonthView extends StatelessWidget {
               _DestGrid(
                 locations: monthLocations,
                 activeId: activeId,
+                showAddButton: isCurrentOrFuture, // 过去的月份不允许添加目的地
                 onTap: (id) => calendarProvider.setActiveLocation(id),
                 onLongPress: (id) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationEditPage(locationId: id, viewYear: year, viewMonth: month))),
                 onAdd: () => _addTempLocation(context, year: year, month: month),
@@ -133,7 +156,7 @@ class MonthView extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   '当前时区：UTC${DateTime.now().timeZoneOffset.isNegative ? "" : "+"}${DateTime.now().timeZoneOffset.inHours}',
-                  style: TextStyle(fontSize: 9, color: Colors.grey[400]),
+                  style: TextStyle(fontSize: 9, color: clayTextTertiary),
                 ),
               ),
             ],
@@ -145,49 +168,79 @@ class MonthView extends StatelessWidget {
   }
 
   void _addTempLocation(BuildContext context, {required int year, required int month}) {
+    // 过去月份不允许添加目的地
+    final dateNow = DateTime.now();
+    if (year < dateNow.year || (year == dateNow.year && month < dateNow.month)) return;
+
     final locationProvider = context.read<LocationProvider>();
     final calendarProvider = context.read<CalendarProvider>();
-    // 全部目的地（不分月过滤，统一可选）
-    final existing = locationProvider.locations.toList();
+    // 目的地候选列表（按名称去重，含 archive + locations）
+    final seen = <String>{};
+    final candidates = <TravelLocation>[];
+    for (final loc in locationProvider.locations) {
+      if (seen.add(loc.name)) candidates.add(loc);
+    }
+    for (final loc in locationProvider.archive) {
+      if (seen.add(loc.name)) candidates.add(loc);
+    }
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      useSafeArea: true,
-      backgroundColor: const Color(0xFFF9F5F0),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
+      barrierColor: const Color(0x33FFFFFF), // 半透明遮罩
+      builder: (ctx) => Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 80, 16, 0),
+          child: AlertDialog(
+            backgroundColor: clayBg,
+            title: const Text('选择或新建目的地'),
+        titlePadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+        content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('选择或新建目的地', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-            if (existing.isNotEmpty) ...[
-              const Divider(height: 1),
+            if (candidates.isNotEmpty) ...[
               SizedBox(
-                height: (existing.length * 48.0).clamp(0, 200),
-                child: ListView(children: existing.map((loc) => ListTile(
-                  dense: true,
-                  leading: Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
-                  title: Text(loc.name, style: const TextStyle(fontSize: 14)),
+                height: (candidates.length * 56.0).clamp(0, 220),
+                child: ListView(children: candidates.map((loc) => GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
-                    locationProvider.activateInMonth(loc.id!, year, month);
-                    calendarProvider.setActiveLocation(loc.id);
+                    final newId = locationProvider.activateInMonth(loc.id!, year, month);
+                    if (newId >= 0) calendarProvider.setActiveLocation(newId);
                   },
+                  child: ClayCard(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        Container(width: 12, height: 12, decoration: BoxDecoration(color: loc.color, shape: BoxShape.circle)),
+                        const SizedBox(width: 10),
+                        Text(loc.name, style: const TextStyle(fontSize: 14)),
+                      ],
+                    ),
+                  ),
                 )).toList()),
               ),
+              const Divider(),
             ],
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-              title: const Text('新建目的地', style: TextStyle(fontSize: 14, color: Colors.blue)),
-              onTap: () { Navigator.pop(ctx); _showAddDialog(context, year: year, month: month); },
+            GestureDetector(
+              onTap: () { Navigator.pop(ctx); Future.microtask(() => _showAddDialog(context, year: year, month: month)); },
+              child: ClayCard(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: const Row(
+                  children: [
+                    Icon(Icons.add_circle_outline, color: clayPurple, size: 20),
+                    SizedBox(width: 10),
+                    Text('新建目的地', style: TextStyle(fontSize: 14, color: clayPurple, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
       ),
+            ),
+          ),
     );
   }
 
@@ -195,12 +248,17 @@ class MonthView extends StatelessWidget {
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 80, 16, 0),
+          child: AlertDialog(
+        backgroundColor: clayBg,
         title: const Text('新建目的地'),
-        content: TextField(
+        content: ClayTextField(
           controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '目的地名称'),
+          hintText: '目的地名称',
+          onChanged: (_) {},
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
@@ -209,9 +267,8 @@ class MonthView extends StatelessWidget {
               if (controller.text.trim().isNotEmpty) {
                 final newId = context.read<LocationProvider>().addTemporaryLocation(controller.text.trim(), year: year, month: month);
                 if (newId == -1) {
-                  // 同名冲突：弹出选择框
                   Navigator.pop(ctx);
-                  _showConflictDialog(context, name: controller.text.trim());
+                  _showConflictDialog(context, name: controller.text.trim(), year: year, month: month);
                 } else {
                   context.read<CalendarProvider>().setActiveLocation(newId);
                   Navigator.pop(ctx);
@@ -222,15 +279,22 @@ class MonthView extends StatelessWidget {
           ),
         ],
       ),
+            ),
+          ),
     );
   }
 
-  void _showConflictDialog(BuildContext context, {required String name}) {
+  void _showConflictDialog(BuildContext context, {required String name, required int year, required int month}) {
     final locationProvider = context.read<LocationProvider>();
     final existing = locationProvider.locations.where((l) => l.name == name).first;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 80, 16, 0),
+          child: AlertDialog(
+        backgroundColor: clayBg,
         title: const Text('名称冲突'),
         content: Text('已存在同名目的地"$name"，是否直接使用已有的？'),
         actions: [
@@ -238,12 +302,15 @@ class MonthView extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              context.read<CalendarProvider>().setActiveLocation(existing.id);
+              final newId = context.read<LocationProvider>().activateInMonth(existing.id!, year, month);
+              if (newId >= 0) context.read<CalendarProvider>().setActiveLocation(newId);
             },
             child: const Text('使用已有的'),
           ),
         ],
       ),
+            ),
+          ),
     );
   }
 }
@@ -254,6 +321,7 @@ class _DestGrid extends StatelessWidget {
   final void Function(int? id) onTap;
   final void Function(int id) onLongPress;
   final VoidCallback onAdd;
+  final bool showAddButton;
 
   const _DestGrid({
     required this.locations,
@@ -261,13 +329,14 @@ class _DestGrid extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onAdd,
+    this.showAddButton = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 3列网格：目的地按序排列，新建按钮跟在最后一个目的地之后
+    // 3列网格：目的地按序排列，新建按钮跟在最后一个目的地之后（过去的月份不显示）
     final cols = 3;
-    final items = locations.length + 1; // +1 for "+"按钮
+    final items = locations.length + (showAddButton ? 1 : 0);
     final rowCount = (items + cols - 1) ~/ cols;
 
     return Column(
@@ -298,14 +367,14 @@ class _DestGrid extends StatelessWidget {
     } else if (idx == locations.length) {
       return GestureDetector(
         onTap: onAdd,
-        child: Container(
+        child: ClayContainer(
           height: 32,
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: const Center(child: Icon(Icons.add, size: 16, color: Colors.grey)),
+          borderRadius: clayRadius,
+          color: clayBg,
+          recessed: true,
+          padding: EdgeInsets.zero,
+          margin: EdgeInsets.zero,
+          child: const Center(child: Icon(Icons.add, size: 16, color: clayTextTertiary)),
         ),
       );
     } else {
@@ -329,18 +398,19 @@ class _DestChip extends StatelessWidget {
       onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isActive ? location.color.withValues(alpha: 0.2) : Colors.grey[100],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isActive ? location.color : Colors.grey[300]!, width: isActive ? 2 : 1),
+          color: isActive ? clayPurple.withValues(alpha: 0.10) : claySurface,
+          borderRadius: BorderRadius.circular(clayRadius),
+          boxShadow: isActive ? null : clayRaisedShadowLight,
+          border: isActive ? Border.all(color: location.color.withValues(alpha: 0.5), width: 1.5) : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(width: 8, height: 8, decoration: BoxDecoration(color: location.color, shape: BoxShape.circle)),
-            const SizedBox(width: 3),
-            Flexible(child: Text(location.name, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal, color: isActive ? location.color : Colors.black87))),
+            const SizedBox(width: 4),
+            Flexible(child: Text(location.name, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, height: 1.5, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal, color: isActive ? location.color : clayTextPrimary))),
           ],
         ),
       ),

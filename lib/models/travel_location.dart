@@ -197,6 +197,7 @@ class TravelLocation {
     Color(0xFF34C759), Color(0xFF30D158), Color(0xFF28A745), Color(0xFF00B84A), Color(0xFF5EEA7E),
     Color(0xFF007AFF), Color(0xFF0066EA), Color(0xFF0055D4), Color(0xFF3B82F6), Color(0xFF60A5FA),
     Color(0xFFFF2D55), Color(0xFFFF3B6E), Color(0xFFFF6482), Color(0xFFE02D4E), Color(0xFFFF8FA8),
+    Color(0xFFAF52DE), Color(0xFF8944C4), Color(0xFF7B2D8E), Color(0xFFBF5AF2), Color(0xFFD580FF),
   ];
 
   /// 色系分组，用于颜色选择器
@@ -205,5 +206,6 @@ class TravelLocation {
     '绿': [Color(0xFF34C759), Color(0xFF30D158), Color(0xFF28A745), Color(0xFF00B84A), Color(0xFF5EEA7E)],
     '蓝': [Color(0xFF007AFF), Color(0xFF0066EA), Color(0xFF0055D4), Color(0xFF3B82F6), Color(0xFF60A5FA)],
     '粉': [Color(0xFFFF2D55), Color(0xFFFF3B6E), Color(0xFFFF6482), Color(0xFFE02D4E), Color(0xFFFF8FA8)],
+    '紫': [Color(0xFFAF52DE), Color(0xFF8944C4), Color(0xFF7B2D8E), Color(0xFFBF5AF2), Color(0xFFD580FF)],
   };
 }

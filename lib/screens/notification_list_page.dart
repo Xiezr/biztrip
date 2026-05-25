@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../theme/clay_colors.dart';
+import '../theme/clay_container.dart';
 import '../services/notification_service.dart';
 
 class NotificationListPage extends StatelessWidget {
@@ -7,7 +9,7 @@ class NotificationListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notifService = context.watch<NotificationService>();
+    final notifService = context.read<NotificationService>();
     final items = notifService.notifications;
 
     return Scaffold(
@@ -17,15 +19,15 @@ class NotificationListPage extends StatelessWidget {
           if (notifService.unreadCount > 0)
             TextButton(
               onPressed: () => notifService.markAllRead(),
-              child: const Text('全部已读'),
+              child: const Text('全部已读', style: TextStyle(color: Colors.white)),
             ),
         ],
       ),
       body: items.isEmpty
-          ? const Center(child: Text('暂无通知'))
+          ? Center(child: Text('暂无通知', style: TextStyle(color: clayTextTertiary)))
           : ListView.separated(
               itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1, indent: 52),
               itemBuilder: (context, index) {
                 final n = items[index];
                 IconData icon;
@@ -33,39 +35,68 @@ class NotificationListPage extends StatelessWidget {
                 switch (n.type) {
                   case NotificationType.prepare:
                     icon = Icons.airplanemode_active;
-                    iconColor = Colors.blue;
+                    iconColor = clayPurple;
                     break;
                   case NotificationType.confirm:
                     icon = Icons.check_circle_outline;
-                    iconColor = Colors.indigo;
+                    iconColor = clayPurpleDark; // deep purple
                     break;
                   case NotificationType.followUp:
                     icon = Icons.follow_the_signs;
-                    iconColor = Colors.orange;
+                    iconColor = clayWarning; // warm amber
                     break;
                   case NotificationType.reimburse:
                     icon = Icons.receipt_long;
-                    iconColor = Colors.green;
+                    iconColor = claySuccess; // soft green
                     break;
                   case NotificationType.report:
                     icon = Icons.assignment;
-                    iconColor = Colors.teal;
+                    iconColor = clayTeal; // teal — unique for reports
                     break;
                   case NotificationType.reminder:
                     icon = Icons.notifications_active;
-                    iconColor = Colors.red;
+                    iconColor = clayError; // soft red
                     break;
                   case NotificationType.monthlySummary:
                     icon = Icons.summarize;
-                    iconColor = Colors.deepPurple;
+                    iconColor = clayPurpleDark;
                     break;
                 }
-                return ListTile(
-                  leading: Icon(icon, color: iconColor),
-                  title: Text(n.message, style: TextStyle(fontWeight: n.isRead ? FontWeight.normal : FontWeight.bold, fontSize: 13)),
-                  subtitle: Text('${n.tripDate.month}/${n.tripDate.day}', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-                  trailing: n.isRead ? null : Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
-                  onTap: () => notifService.markRead(index),
+                return ClayCard(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: iconColor, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              n.message,
+                              style: TextStyle(
+                                fontWeight: n.isRead ? FontWeight.normal : FontWeight.w600,
+                                fontSize: 13,
+                                color: clayTextPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${n.tripDate.month}/${n.tripDate.day}',
+                              style: TextStyle(color: clayTextTertiary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!n.isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: clayPurple, shape: BoxShape.circle),
+                        ),
+                    ],
+                  ),
                 );
               },
             ),

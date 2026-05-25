@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../theme/clay_colors.dart';
 
-/// 天数字段（点击弹出选择器）
+/// 内凹黏土日期/天数选择字段
 class DayField extends StatelessWidget {
   final String label;
   final int value;
@@ -23,24 +24,24 @@ class DayField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[200]!),
+          color: clayInputBg, // 内凹：用输入底色
+          borderRadius: BorderRadius.circular(clayRadiusSmall),
+          boxShadow: clayRecessedShadow,
         ),
         child: Row(
           children: [
-            Text(label, style: const TextStyle(fontSize: 15)),
+            Text(label, style: const TextStyle(fontSize: 13, color: clayTextSecondary)),
             const Spacer(),
             Text(
               '$displayValue天',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: displayValue < 0 ? Colors.blue : Colors.orange,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: displayValue < 0 ? clayPurple : clayWarning,
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
+            const Icon(Icons.expand_more, size: 16, color: clayTextTertiary),
           ],
         ),
       ),

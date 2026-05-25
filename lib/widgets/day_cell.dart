@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/clay_colors.dart';
 import '../models/travel_mark.dart';
 import '../models/travel_location.dart';
 
@@ -44,14 +45,25 @@ class DayCell extends StatelessWidget {
 
     Widget cell;
     if (!hasMarks) {
-      cell = _buildCore(colors, isToday, isCurrentMonth, theme);
-    } else {
-      // 有标记：圆形涂抹
+      // 无标记：内凹效果
       cell = Container(
-        margin: const EdgeInsets.all(1),
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))],
+          color: clayInputBg,
+          boxShadow: clayRecessedShadow,
+        ),
+        child: _buildCore(colors, isToday, isCurrentMonth, theme),
+      );
+    } else {
+      // 有标记：黏土凸起 + 目的地颜色
+      cell = Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: clayRaisedShadow,
         ),
         child: ClipOval(
           child: CustomPaint(
@@ -64,7 +76,7 @@ class DayCell extends StatelessWidget {
       );
     }
 
-    // 节假日角标
+    // 节假日角标 — 紫色 "休"
     if (isHoliday) {
       return GestureDetector(
         onTap: onTap,
@@ -80,7 +92,7 @@ class DayCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: fontSize * 0.55,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF007AFF),
+                  color: clayHoliday,
                   height: 1,
                 ),
               ),
@@ -99,7 +111,7 @@ class DayCell extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: isToday
-            ? Border.all(color: theme.colorScheme.primary, width: 2)
+            ? Border.all(color: clayPurple, width: 2)
             : null,
       ),
       child: Center(
@@ -108,7 +120,7 @@ class DayCell extends StatelessWidget {
           style: TextStyle(
             fontSize: fontSize,
             fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
-            color: hasMarks ? Colors.white : (isCurrentMonth ? Colors.black87 : Colors.grey[400]),
+            color: hasMarks ? Colors.white : (isCurrentMonth ? clayTextPrimary : clayTextTertiary),
           ),
         ),
       ),

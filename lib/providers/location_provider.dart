@@ -5,7 +5,8 @@ import '../database/storage_service.dart';
 
 class LocationProvider extends ChangeNotifier {
   List<TravelLocation> _locations = [];   // 第2层 Reference：新建差旅可选，受删除影响
-  List<TravelLocation> _archive = [];     // 第1层 Archive：日历显示，只增不删
+  List<TravelLocation> _archive = [];     // 第1层 Archive：历史颜色查找 + 历史月标签
+  List<TravelLocation> _preference = [];  // 第3层 Preference：临时删除配置留底，同名不可重复
   int _nextId = 1;
   final StorageService _storage = StorageService();
 
@@ -14,6 +15,9 @@ class LocationProvider extends ChangeNotifier {
 
   /// 第1层：供日历渲染和目的地展示（append-only，不受删除影响）
   List<TravelLocation> get archive => List.unmodifiable(_archive);
+
+  /// 第3层：临时删除的配置留底（用于恢复，同名不可重复）
+  List<TravelLocation> get preference => List.unmodifiable(_preference);
 
   List<TravelLocation> get fixedLocations =>
       _locations.where((l) => l.scope == LocationScope.global).toList();
@@ -41,9 +45,10 @@ class LocationProvider extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      // 1. 加载两层数据
+      // 1. 加载三层数据
       _archive = await _storage.loadArchive();
       _locations = await _storage.loadLocations();
+      _preference = await _storage.loadPreferences();
 
       // 2. 逐步执行初始化/迁移
       await _migrateLegacyArchive();
@@ -56,9 +61,11 @@ class LocationProvider extends ChangeNotifier {
       debugPrint('LocationProvider.load error: $e\n$stack');
       _locations = [];
       _archive = [];
+      _preference = [];
       _nextId = 1;
       await _storage.saveLocations(_locations);
       await _storage.saveArchive(_archive);
+      await _storage.savePreferences(_preference);
     }
     notifyListeners();
   }
@@ -164,13 +171,22 @@ class LocationProvider extends ChangeNotifier {
   Future<void> save() async {
     await _storage.saveLocations(_locations);
     await _storage.saveArchive(_archive);
+    await _storage.savePreferences(_preference);
   }
 
-  /// 向 archive 追加（同名不重复，保留原 scope）
+  /// 向 archive 追加（同名去重：global 全局唯一；month 按年月去重，不同月可共存）
   void _addToArchive(TravelLocation loc) {
     final existingIdx = _archive.indexWhere((a) => a.name == loc.name);
-    if (existingIdx >= 0) return; // 同名已存在，跳过
-    _archive.add(loc.copyWith()); // 保留原 scope
+    if (existingIdx >= 0) {
+      final existing = _archive[existingIdx];
+      // global 或同月 → 真正重复，跳过
+      if (existing.scope == LocationScope.global ||
+          (existing.scopedYear == loc.scopedYear && existing.scopedMonth == loc.scopedMonth)) {
+        return;
+      }
+      // 不同月 → 允许新增一条
+    }
+    _archive.add(loc.copyWith());
   }
 
   /// 添加全局固定目的地
@@ -197,8 +213,8 @@ class LocationProvider extends ChangeNotifier {
 
   /// 返回 -1 表示已存在同名目的地（由 UI 处理冲突提示）
   int addTemporaryLocation(String name, {int? year, int? month}) {
-    // 同名冲突检测（查两层，避免 calendar 显示混乱）
-    final conflict = _locations.any((l) => l.name == name) || _archive.any((l) => l.name == name);
+    // 同名冲突检测：仅查 reference 层（temp-delete 后 archive 仍保留，但应允许重新添加）
+    final conflict = _locations.any((l) => l.name == name);
     if (conflict) return -1;
 
     final y = year ?? DateTime.now().year;
@@ -229,49 +245,85 @@ class LocationProvider extends ChangeNotifier {
     return id;
   }
 
-  /// 将已有目的地激活到指定月份：如果 archive 中存在但 reference 层没有该月作用域的副本，则添加
-  /// 返回 -1 表示 ID 无效
+  /// 将已有目的地激活到指定月份（月度隔离）
+  /// - 从 archive / locations 中按 ID 查找源（保留配置信息）
+  /// - 若当前月已有该名称的目的地 → 直接返回已有 ID
+  /// - 否则创建新的月独属副本（新 ID），scope=month，写入 _locations + _archive
+  /// 返回：新创建的目的地 ID（或已有 ID），-1 表示 ID 无效
   int activateInMonth(int id, int year, int month) {
     // 从 archive 中查找源
     TravelLocation? src;
-    try {
-      src = _archive.firstWhere((l) => l.id == id);
-    } catch (_) {
-      return -1;
-    }
+    try { src = _archive.firstWhere((l) => l.id == id); } catch (_) {}
+    src ??= (() { try { return _locations.firstWhere((l) => l.id == id); } catch (_) { return null; } })();
+    if (src == null) return -1;
 
-    // 检查 reference 层是否已有该月作用域的副本
-    final s = src; // 已通过上面的 try/catch 确保非 null
-    final already = _locations.any(
-      (l) => l.id == id || (l.name == s.name && l.scopedYear == year && l.scopedMonth == month),
+    final s = src;
+
+    // 检查当前月是否已有同名目的地
+    final existingIdx = _locations.indexWhere(
+      (l) => l.name == s.name && l.scopedYear == year && l.scopedMonth == month,
     );
-    if (already) return id;
+    if (existingIdx >= 0) return _locations[existingIdx].id!;
 
-    // 不存在 → 添加 month 作用域的副本
+    // 创建当前月独属副本（新 ID）
+    final newId = _nextId++;
     final copy = s.copyWith(
+      id: newId,
       scope: LocationScope.month,
       scopedYear: year,
       scopedMonth: month,
     );
     _locations.add(copy);
+    _addToArchive(copy);
     notifyListeners();
     save();
-    return id;
+    return newId;
   }
 
-  /// 永久删除：仅删除 reference 层，archive 保留
-  void removeLocation(int id) {
+  /// 临时删除：从 reference 移除，archive 保留（历史月份仍需显示），配置保存到 preference（同名不可重复）
+  /// 调用方需自行清除该目的地的未来标记（MarkProvider.removeFutureMarks）
+  void tempDeleteLocation(int id) {
+    // 1. 找到源对象（优先 archive 后 locations）
+    TravelLocation? src;
+    try {
+      src = _archive.firstWhere((l) => l.id == id);
+    } catch (_) {}
+    src ??= (() { try { return _locations.firstWhere((l) => l.id == id); } catch (_) { return null; } })();
+    if (src == null) return;
+
+    // 2. preference 同名不可重复
+    final s = src; // 流分析辅助：src 已通过 null check
+    final conflict = _preference.any((p) => p.name == s.name);
+    if (!conflict) {
+      _preference.add(s.copyWith());
+    }
+
+    // 3. 仅移除 reference 层，archive 保留供历史月渲染
     _locations.removeWhere((l) => l.id == id);
+
     notifyListeners();
     save();
   }
 
-  /// 临时删除（隐藏）：仅删除 reference 层，archive 保留
-  /// 用于从当前可选目的地列表中移除，但历史记录仍保留在日历中
+  /// 永久删除：从 reference + preference 移除，archive 保留（供历史差旅颜色渲染）
+  /// 调用方需自行清除该目的地的未来标记（MarkProvider.removeFutureMarks）
+  void permDeleteLocation(int id) {
+    _locations.removeWhere((l) => l.id == id);
+    _preference.removeWhere((l) => l.id == id);
+    // archive 不动 —— 历史差旅仍需颜色查找
+
+    notifyListeners();
+    save();
+  }
+
+  /// 保留旧方法兼容性（如果外部有调用），内部委托给 tempDeleteLocation
   void archiveLocation(int id, {int? year, int? month}) {
-    _locations.removeWhere((l) => l.id == id);
-    notifyListeners();
-    save();
+    tempDeleteLocation(id);
+  }
+
+  /// 保留旧方法兼容性，内部委托给 permDeleteLocation
+  void removeLocation(int id) {
+    permDeleteLocation(id);
   }
 
   int get nextId => _nextId;
@@ -332,6 +384,9 @@ class LocationProvider extends ChangeNotifier {
     } catch (_) {}
     try {
       return _locations.firstWhere((l) => l.id == id);
+    } catch (_) {}
+    try {
+      return _preference.firstWhere((l) => l.id == id);
     } catch (_) {}
     return null;
   }

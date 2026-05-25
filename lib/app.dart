@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'theme/clay_colors.dart'; // 黏土主题颜色
 import 'providers/calendar_provider.dart';
 import 'providers/mark_provider.dart';
 import 'providers/location_provider.dart';
@@ -18,9 +19,10 @@ class BizTripApp extends StatelessWidget {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // 设置系统导航栏全透明，让 Scaffold 背景色自然填充到底
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarColor: clayBg,
       systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarDividerColor: clayBg,
+      systemNavigationBarContrastEnforced: false, // 禁止系统在导航栏叠加对比度遮罩（根因：Bug3 底部到不了边）
     ));
 
     return MaterialApp(
@@ -28,22 +30,38 @@ class BizTripApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF007AFF),
+          seedColor: clayPurple,
           brightness: Brightness.light,
-          surface: const Color(0xFFF9F5F0),
+          surface: claySurface,
+          primary: clayPurple,
+          onPrimary: Colors.white,
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF9F5F0),
+        scaffoldBackgroundColor: clayBg,
         fontFamily: 'Roboto',
         cardTheme: CardThemeData(
-          elevation: 2,
-          shadowColor: Colors.black.withValues(alpha: 0.08),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0, // 阴影由 ClayContainer 接管
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(clayRadius)),
         ),
         appBarTheme: const AppBarTheme(
           elevation: 0,
           centerTitle: true,
           backgroundColor: Colors.transparent,
+          foregroundColor: clayTextPrimary,
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: clayPurple,
+          foregroundColor: Colors.white,
+          elevation: 0, // 阴影由 ClayContainer 接管
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: InputBorder.none,
+          hintStyle: TextStyle(color: clayTextTertiary, fontSize: 13),
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.all(clayPurple),
         ),
       ),
       home: const HomePage(),
@@ -90,6 +108,7 @@ class _HomePageState extends State<HomePage> {
       },
       child: Scaffold(
         extendBody: true, // 内容延伸到屏幕底部（圆角屏适配）
+        resizeToAvoidBottomInset: false, // 键盘弹起时不收缩 Scaffold，避免对话框背景出现"安全条纹"
         appBar: AppBar(
           title: const Text('差旅日历'),
           centerTitle: true,
@@ -107,25 +126,28 @@ class _HomePageState extends State<HomePage> {
                 if (unreadCount > 0)
                   Positioned(right: 6, top: 6, child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: clayPurple, shape: BoxShape.circle),
                     child: Text('$unreadCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
                   )),
               ],
             ),
             IconButton(
-              icon: Icon(Icons.event_note, color: viewMode == ViewMode.year ? Theme.of(context).colorScheme.primary : null),
+              icon: Icon(Icons.event_note, color: viewMode == ViewMode.year ? clayPurple : null),
               onPressed: () => context.read<CalendarProvider>().setViewMode(ViewMode.year),
             ),
             IconButton(
-              icon: Icon(Icons.calendar_month, color: viewMode == ViewMode.month ? Theme.of(context).colorScheme.primary : null),
+              icon: Icon(Icons.calendar_month, color: viewMode == ViewMode.month ? clayPurple : null),
               onPressed: () => context.read<CalendarProvider>().setViewMode(ViewMode.month),
             ),
           ],
         ),
         body: SafeArea(
           top: false,  // AppBar 自己处理顶部安全区
-          bottom: true, // 底部留出导航栏空间
-          child: viewMode == ViewMode.year ? const YearView() : const MonthView(),
+          bottom: false, // extendBody:true 已让内容延伸到底部，此处不设底部 padding
+          child: Container(
+            color: clayBg, // edgeToEdge 下填充导航栏背景色
+            child: viewMode == ViewMode.year ? const YearView() : const MonthView(),
+          ),
         ),
       ),
     );

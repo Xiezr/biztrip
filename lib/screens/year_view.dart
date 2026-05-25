@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/calendar_provider.dart';
 import '../providers/mark_provider.dart';
 import '../providers/location_provider.dart';
+import '../utils/calendar_utils.dart';
 import '../widgets/month_card.dart';
 
 class YearView extends StatelessWidget {
@@ -12,7 +13,7 @@ class YearView extends StatelessWidget {
   Widget build(BuildContext context) {
     final calendarProvider = context.read<CalendarProvider>();
     final year = context.select<CalendarProvider, int>((p) => p.year);
-    final markProvider = context.watch<MarkProvider>();
+    final markProvider = context.read<MarkProvider>();
     final locationProvider = context.read<LocationProvider>();
     // 只用 locations（reference 层）构建 validLocIds，确保 scope 过滤生效
     final validLocIds = locationProvider.locationIdsForYear(year);
@@ -21,31 +22,43 @@ class YearView extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
-        if (velocity > 200) {
+        if (velocity > CalendarUtils.swipeThreshold) {
           calendarProvider.setYear(year - 1);
-        } else if (velocity < -200) {
+        } else if (velocity < -CalendarUtils.swipeThreshold) {
           calendarProvider.setYear(year + 1);
         }
       },
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 年份标题（点击回当年，左右滑切换）
+          // 年份标题行
+          const SizedBox(height: 12),
           Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: GestureDetector(
-              onTap: () => calendarProvider.setYear(DateTime.now().year),
-              child: Text(
-                '$year 年',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 2),
-              ),
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, size: 26),
+                  onPressed: () => calendarProvider.setYear(year - 1),
+                ),
+                GestureDetector(
+                  onTap: () => calendarProvider.setYear(DateTime.now().year),
+                  child: Text(
+                    '$year 年',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: 1),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right, size: 26),
+                  onPressed: () => calendarProvider.setYear(year + 1),
+                ),
+              ],
             ),
           ),
-        // 12宫格（居中）
+        // 12宫格
         Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -72,6 +85,7 @@ class YearView extends StatelessWidget {
             ),
           ),
         ),
+          const Spacer(),
         ],
       ),
     );

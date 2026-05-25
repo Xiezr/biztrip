@@ -82,23 +82,25 @@ class NotificationService extends ChangeNotifier {
 
       // 差旅通知（提前N天）
       if (diff > 0 && diff <= loc.notificationDaysBefore) {
+        final reminderCount = loc.specialReminder.where((s) => s.trim().isNotEmpty).length;
         newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
           type: NotificationType.prepare,
-          message: '【${loc.name}】-${loc.notificationDaysBefore}天通知（第${loc.notificationDaysBefore - diff + 1}天）',
+          message: '${loc.name}差旅计划距今$diff天，请确认提醒事项$reminderCount项完成',
         ));
       }
 
       // 差旅确认（提前N天）
       if (diff > 0 && diff <= loc.confirmationDaysBefore) {
+        final reminderCount = loc.specialReminder.where((s) => s.trim().isNotEmpty).length;
         newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
           type: NotificationType.confirm,
-          message: '【${loc.name}】请确认差旅安排（-${loc.confirmationDaysBefore}天）',
+          message: '${loc.name}差旅计划距今$diff天，请确认提醒事项$reminderCount项完成',
         ));
       }
 
@@ -115,12 +117,13 @@ class NotificationService extends ChangeNotifier {
 
       // 差旅跟进（结束后N天内）
       if (diff < 0 && diff.abs() <= loc.followUpDaysAfter) {
+        final reminderCount = loc.specialReminder.where((s) => s.trim().isNotEmpty).length;
         newNotifications.add(TripNotification(
           locationId: loc.id!,
           locationName: loc.name,
           tripDate: mark.date,
           type: NotificationType.followUp,
-          message: '【${loc.name}】+${diff.abs()}天跟进',
+          message: '${loc.name}差旅已过去${diff.abs()}天，请确认提醒事项$reminderCount项完成',
         ));
       }
 

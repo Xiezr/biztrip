@@ -115,6 +115,20 @@ class MarkProvider extends ChangeNotifier {
     _debouncedSave();
   }
 
+  /// 删除指定地点在今天之后的所有标记（已发生的不动）
+  Future<void> removeFutureMarks(int locationId) async {
+    final today = DateTime.now();
+    final todayNormalized = DateTime(today.year, today.month, today.day);
+    _marks.removeWhere((m) =>
+      m.locationId == locationId &&
+      _normalizeDate(m.date).isAfter(todayNormalized),
+    );
+    notifyListeners();
+    _debouncedSave();
+    // 立即刷新，确保删除持久化
+    await _storage.saveMarks(_marks);
+  }
+
   /// 删除指定地点的所有标记（永久删除时使用）
   Future<void> removeMarksByLocation(int locationId) async {
     _marks.removeWhere((m) => m.locationId == locationId);

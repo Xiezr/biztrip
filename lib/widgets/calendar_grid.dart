@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/clay_colors.dart';
 import '../utils/calendar_utils.dart';
 import '../models/travel_mark.dart';
 import '../models/travel_location.dart';
@@ -44,7 +45,7 @@ class CalendarGrid extends StatelessWidget {
                 width: cellSize,
                 height: 20,
                 child: Center(
-                  child: Text(d, style: TextStyle(fontSize: headerFontSize, color: Colors.grey[500], fontWeight: FontWeight.w400, letterSpacing: 1.2)),
+                  child: Text(d, style: TextStyle(fontSize: headerFontSize, color: clayTextSecondary, fontWeight: FontWeight.w400, letterSpacing: 1.2)),
                 ),
               );
             }).toList(),

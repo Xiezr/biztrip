@@ -157,6 +157,31 @@ class StorageService {
     }
   }
 
+  // ==================== 偏好（Preference 第3层） ====================
+
+  /// 加载偏好列表（临时删除的目的地配置留底，用于恢复）
+  Future<List<TravelLocation>> loadPreferences() async {
+    await init();
+    try {
+      final data = await _loadJson('$_appDir/preference.json', 'loadPreferences');
+      return data.map((e) => TravelLocation.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('loadPreferences parse error: $e');
+      return [];
+    }
+  }
+
+  /// 保存偏好列表
+  Future<void> savePreferences(List<TravelLocation> preferences) async {
+    await init();
+    try {
+      final list = preferences.map((l) => l.toJson()).toList();
+      await _safeWrite('$_appDir/preference.json', jsonEncode(list));
+    } catch (e) {
+      debugPrint('savePreferences error: $e');
+    }
+  }
+
   // ==================== 标记 ====================
 
   Future<List<TravelMark>> loadMarks() async {

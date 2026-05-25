@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/clay_colors.dart';
+import '../theme/clay_container.dart';
 import '../utils/calendar_utils.dart';
 
 class MonthCard extends StatelessWidget {
@@ -17,17 +19,12 @@ class MonthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isCurrentMonth = month == DateTime.now().month && year == DateTime.now().year;
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isCurrentMonth ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: isCurrentMonth ? Border.all(color: theme.colorScheme.primary, width: 1.5) : null,
-        ),
+      child: ClayMonthCard(
+        isCurrentMonth: isCurrentMonth,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -36,7 +33,7 @@ class MonthCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: isCurrentMonth ? theme.colorScheme.primary : Colors.black87,
+                color: isCurrentMonth ? clayPurple : clayTextPrimary,
               ),
             ),
             const SizedBox(height: 4),
@@ -44,22 +41,22 @@ class MonthCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  color: clayPurple.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$travelDays 天',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: theme.colorScheme.primary,
+                    color: clayPurple,
                   ),
                 ),
               )
             else
               Text(
                 '无差旅',
-                style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                style: TextStyle(fontSize: 11, color: clayTextTertiary),
               ),
           ],
         ),

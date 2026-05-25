@@ -1,6 +1,9 @@
 class CalendarUtils {
   static const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
+  /// 水平滑动切换月份/年份的最小速度阈值 (px/s)
+  static const double swipeThreshold = 200.0;
+
   /// 某月的天数
   static int daysInMonth(int year, int month) {
     if (month == 2) {
